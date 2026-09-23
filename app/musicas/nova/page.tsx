@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { criarMusicaAction } from "./actions";
-import { ArrowLeft, Save } from "lucide-react";
+import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
 import Link from "next/link";
 
 export default function NovaMusicaPage() {
@@ -14,6 +14,23 @@ export default function NovaMusicaPage() {
   const [cifra, setCifra] = useState("");
   const [carregando, setCarregando] = useState(false);
   const [mensagemErro, setMensagemErro] = useState("");
+  const [emTelaCheia, setEmTelaCheia] = useState(false);
+  
+  const containerCifraRef = useRef<HTMLDivElement>(null);
+
+  const alternarTelaCheia = () => {
+    if (!document.fullscreenElement && containerCifraRef.current) {
+      containerCifraRef.current.requestFullscreen().catch((err) => {
+        console.error("Erro ao tentar entrar em tela cheia:", err);
+      });
+      setEmTelaCheia(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+      setEmTelaCheia(false);
+    }
+  };
 
   const salvarMusica = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +49,6 @@ export default function NovaMusicaPage() {
       });
 
       if (resultado.sucesso) {
-        // Redireciona para a lista de músicas após salvar
         router.push("/musicas");
         router.refresh();
       } else {
@@ -110,16 +126,30 @@ export default function NovaMusicaPage() {
           </select>
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">
-            Cifra / Letra
-          </label>
+        {/* Bloco da Cifra com suporte a expansão / ecrã cheio */}
+        <div ref={containerCifraRef} className={`${emTelaCheia ? 'bg-slate-900 p-4 h-screen flex flex-col' : ''}`}>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-slate-300">
+              Cifra / Letra
+            </label>
+            <button
+              type="button"
+              onClick={alternarTelaCheia}
+              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition"
+              title="Expandir campo de texto"
+            >
+              {emTelaCheia ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              <span>{emTelaCheia ? "Normal" : "Expandir"}</span>
+            </button>
+          </div>
           <textarea
-            rows={8}
+            rows={12}
             placeholder="Cole aqui a cifra ou letra da música..."
             value={cifra}
             onChange={(e) => setCifra(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:border-amber-400"
+            className={`w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:border-amber-400 ${
+              emTelaCheia ? "flex-1 h-[80vh]" : ""
+            }`}
           />
         </div>
 
