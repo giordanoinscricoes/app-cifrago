@@ -279,13 +279,18 @@ export default function ModoApresentacaoPage({
   }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 pb-48 pt-16">
-      {/* Barra Superior Fixa */}
-      <header className="fixed top-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-40 px-4 py-2.5 flex items-center justify-between">
+    <main className={`min-h-screen bg-slate-950 text-slate-100 pb-48 ${isScrolling ? "pt-4" : "pt-16"}`}>
+      {/* Barra Superior Fixa (Oculta automaticamente quando o Play/isScrolling está ativo) */}
+      <header 
+        className={`fixed top-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-40 px-4 py-2.5 flex items-center justify-between transition-transform duration-300 ${
+          isScrolling ? "-translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
+        }`}
+      >
         <div className="flex items-center gap-2 overflow-hidden">
           <Link
             href={`/repertorios/${repertorioId}`}
             className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 shrink-0"
+            title="Voltar ao repertório"
           >
             <ArrowLeft size={18} />
           </Link>
@@ -334,8 +339,12 @@ export default function ModoApresentacaoPage({
         </div>
       </div>
 
-      {/* Controlos Inferiores Fixos (Incluindo Barra de Tom Fixa e Auto-scroll) */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2">
+      {/* Controlos Inferiores Fixos (Ocultam automaticamente quando o Play/isScrolling está ativo) */}
+      <footer 
+        className={`fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2 transition-transform duration-300 ${
+          isScrolling ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
+        }`}
+      >
         
         {/* Controlo de Tom Fixo no Rodapé */}
         <div className="max-w-2xl mx-auto flex items-center justify-between bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
