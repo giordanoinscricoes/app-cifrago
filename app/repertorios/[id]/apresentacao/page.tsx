@@ -14,8 +14,11 @@ import {
   Pause,
   Plus,
   Minus,
-  RotateCcw,
+  Type,
 } from "lucide-react";
+
+// 1. Importa as funções diretamente da tua matriz centralizada
+import { transporCifra, transporNota } from "@/lib/cifras";
 
 interface Musica {
   id: string;
@@ -23,64 +26,6 @@ interface Musica {
   artista: string;
   tomOriginal: string;
   cifra?: string;
-}
-
-const TONS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const TONS_BEMOL = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
-
-function transporAcorde(acorde: string, semitons: number): string {
-  if (!acorde) return acorde;
-
-  const match = acorde.match(/^([A-G][b#]?)(.*)$/);
-  if (!match) return acorde;
-
-  const raiz = match[1];
-  const resto = match[2];
-
-  let index = TONS.indexOf(raiz);
-  if (index === -1) {
-    index = TONS_BEMOL.indexOf(raiz);
-  }
-  if (index === -1) return acorde;
-
-  let novoIndex = (index + semitons) % 12;
-  if (novoIndex < 0) novoIndex += 12;
-
-  return TONS[novoIndex] + resto;
-}
-
-function transporCifra(cifra: string, semitons: number): string {
-  if (!cifra || semitons === 0) return cifra;
-
-  const linhas = cifra.split("\n");
-
-  return linhas
-    .map((linha) => {
-      if (!linha.trim()) return linha;
-
-      if (linha.trim().startsWith("[") && linha.trim().endsWith("]")) {
-        return linha;
-      }
-
-      const tokens = linha.trim().split(/\s+/);
-      const todosSaoAcordes = tokens.every((token) => {
-        return /^([A-G][b#]?)([mMaj0-9\(\)\/\+\#\-]*)$/.test(token);
-      });
-
-      if (todosSaoAcordes && (/\s{2,}/.test(linha) || tokens.length <= 6)) {
-        return linha.replace(/([A-G][b#]?[mMaj0-9\(\)\/\+\#\-]*)/g, (match) => {
-          if (!match.trim()) return match;
-          const raizMatch = match.match(/^([A-G][b#]?)/);
-          if (raizMatch && (TONS.includes(raizMatch[1]) || TONS_BEMOL.includes(raizMatch[1]))) {
-            return transporAcorde(match, semitons);
-          }
-          return match;
-        });
-      }
-
-      return linha;
-    })
-    .join("\n");
 }
 
 export default function ModoApresentacaoPage({
@@ -97,6 +42,7 @@ export default function ModoApresentacaoPage({
   const [fullScreen, setFullScreen] = useState(false);
 
   const [transposicoes, setTransposicoes] = useState<{ [key: number]: number }>({});
+  const [tamanhoFonte, setTamanhoFonte] = useState(15);
 
   const [isScrolling, setIsScrolling] = useState(false);
   const [scrollSpeed, setScrollSpeed] = useState(0.030); 
@@ -222,20 +168,13 @@ export default function ModoApresentacaoPage({
 
   const obterTomTransposto = () => {
     if (!musicaAtual) return "C";
-    return transporAcorde(musicaAtual.tomOriginal, semitonsAtuais);
+    return transporNota(musicaAtual.tomOriginal || "C", semitonsAtuais);
   };
 
   const alterarTom = (direcao: number) => {
     setTransposicoes((prev) => ({
       ...prev,
       [indexAtual]: (prev[indexAtual] || 0) + direcao,
-    }));
-  };
-
-  const resetarTom = () => {
-    setTransposicoes((prev) => ({
-      ...prev,
-      [indexAtual]: 0,
     }));
   };
 
@@ -279,18 +218,12 @@ export default function ModoApresentacaoPage({
   }
 
   return (
-    <main className={`min-h-screen bg-slate-950 text-slate-100 pb-48 ${isScrolling ? "pt-4" : "pt-16"}`}>
-      {/* Barra Superior Fixa (Oculta automaticamente quando o Play/isScrolling está ativo) */}
-      <header 
-        className={`fixed top-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-40 px-4 py-2.5 flex items-center justify-between transition-transform duration-300 ${
-          isScrolling ? "-translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
-        }`}
-      >
+    <main className="min-h-screen bg-slate-950 text-slate-100 pb-56 pt-16">
+      <header className="fixed top-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-40 px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2 overflow-hidden">
           <Link
             href={`/repertorios/${repertorioId}`}
             className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 shrink-0"
-            title="Voltar ao repertório"
           >
             <ArrowLeft size={18} />
           </Link>
@@ -321,7 +254,6 @@ export default function ModoApresentacaoPage({
         </div>
       </header>
 
-      {/* Conteúdo Principal */}
       <div className="max-w-2xl mx-auto px-4 mt-2">
         <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 mb-4 gap-2">
           <div className="overflow-hidden">
@@ -333,60 +265,71 @@ export default function ModoApresentacaoPage({
         </div>
 
         <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 shadow-inner">
-          <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap break-words text-slate-200 font-medium">
+          <pre
+            style={{ fontSize: `${tamanhoFonte}px` }}
+            className="font-mono leading-relaxed whitespace-pre-wrap break-words text-slate-200 font-medium transition-all duration-150"
+          >
             {transporCifra(musicaAtual.cifra || "", semitonsAtuais)}
           </pre>
         </div>
       </div>
 
-      {/* Controlos Inferiores Fixos (Sempre visíveis) */}
-      <footer 
-        className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2"
-      >
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2">
         
-        {/* Controlo de Tom Fixo no Rodapé */}
-        <div className="max-w-2xl mx-auto flex items-center justify-between bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tom:</span>
-            <span className="text-sm font-black text-amber-400 font-mono px-2 py-0.5 bg-slate-900 rounded border border-slate-800 min-w-[36px] text-center">
-              {obterTomTransposto()}
-            </span>
-            {semitonsAtuais !== 0 && (
-              <span className="text-[10px] text-slate-400 font-mono">
-                (orig: {musicaAtual.tomOriginal})
+        <div className="max-w-2xl mx-auto grid grid-cols-2 gap-2">
+          
+          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Tom:</span>
+              <span className="text-xs font-black text-amber-400 font-mono px-1.5 py-0.5 bg-slate-900 rounded border border-slate-800 text-center shrink-0">
+                {obterTomTransposto()}
               </span>
-            )}
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => alterarTom(-1)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Baixar Tom"
+              >
+                <Minus size={14} />
+              </button>
+              <button
+                onClick={() => alterarTom(1)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Subir Tom"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {semitonsAtuais !== 0 && (
+          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <Type size={14} className="text-slate-400 shrink-0" />
+              <span className="text-xs font-mono font-bold text-amber-400 shrink-0">{tamanhoFonte}px</span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
               <button
-                onClick={resetarTom}
-                className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg transition flex items-center gap-1 text-xs font-semibold"
-                title="Voltar ao tom original"
+                onClick={() => setTamanhoFonte((prev) => Math.max(10, prev - 1))}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Diminuir Fonte"
               >
-                <RotateCcw size={14} />
-                <span className="hidden sm:inline">Original</span>
+                <Minus size={14} />
               </button>
-            )}
-            <button
-              onClick={() => alterarTom(-1)}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
-              title="Baixar Tom"
-            >
-              <Minus size={16} />
-            </button>
-            <button
-              onClick={() => alterarTom(1)}
-              className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
-              title="Subir Tom"
-            >
-              <Plus size={16} />
-            </button>
+              <button
+                onClick={() => setTamanhoFonte((prev) => Math.min(32, prev + 1))}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Aumentar Fonte"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
+
         </div>
 
-        {/* Controlo de Auto-scroll com Slider */}
         <div className="max-w-2xl mx-auto bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -420,7 +363,6 @@ export default function ModoApresentacaoPage({
           </div>
         </div>
 
-        {/* Navegação entre Músicas */}
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
           <button
             onClick={musicaAnterior}
@@ -444,9 +386,9 @@ export default function ModoApresentacaoPage({
             <ChevronRight size={18} />
           </button>
         </div>
+
       </footer>
 
-      {/* Menu / Setlist */}
       {menuAberto && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex justify-end">
           <div className="w-full max-w-xs bg-slate-900 h-full p-4 flex flex-col justify-between shadow-2xl border-l border-slate-800">
@@ -465,7 +407,7 @@ export default function ModoApresentacaoPage({
 
               <div className="space-y-1.5 max-h-[75vh] overflow-y-auto pr-1">
                 {musicas.map((m, i) => {
-                  const tomTransp = transporAcorde(m.tomOriginal, transposicoes[i] || 0);
+                  const tomTransp = transporNota(m.tomOriginal || "C", transposicoes[i] || 0);
                   return (
                     <button
                       key={m.id}
