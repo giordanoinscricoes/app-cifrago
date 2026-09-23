@@ -339,11 +339,9 @@ export default function ModoApresentacaoPage({
         </div>
       </div>
 
-      {/* Controlos Inferiores Fixos (Ocultam automaticamente quando o Play/isScrolling está ativo) */}
+      {/* Controlos Inferiores Fixos (Sempre visíveis) */}
       <footer 
-        className={`fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2 transition-transform duration-300 ${
-          isScrolling ? "translate-y-full opacity-0 pointer-events-none" : "translate-y-0 opacity-100"
-        }`}
+        className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2"
       >
         
         {/* Controlo de Tom Fixo no Rodapé */}
