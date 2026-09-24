@@ -1,41 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { criarRepertorioAction } from "./actions";
 
 export default function NovoRepertorioPage() {
   const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
   const [salvando, setSalvando] = useState(false);
 
-  const projectId = "app-cifras-bcdce";
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
 
   const handleSalvar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!titulo.trim()) return;
+    if (!titulo.trim() || !user) return;
 
     try {
       setSalvando(true);
-      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios`;
-
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fields: {
-            titulo: { stringValue: titulo },
-            descricao: { stringValue: descricao },
-            musicasIds: { arrayValue: { values: [] } },
-            ordem: { integerValue: Date.now() },
-          },
-        }),
+      const resultado = await criarRepertorioAction({
+        titulo,
+        descricao,
+        userId: user.uid,
       });
 
-      if (res.ok) {
+      if (resultado.sucesso) {
         router.push("/repertorios");
+      } else {
+        alert(resultado.erro || "Erro ao criar repertório.");
       }
     } catch (erro) {
       console.error("Erro ao criar repertório:", erro);

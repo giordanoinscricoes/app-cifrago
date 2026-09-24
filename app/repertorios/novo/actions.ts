@@ -3,7 +3,7 @@
 export async function criarRepertorioAction(data: {
   titulo: string;
   descricao?: string;
-  dataEvento?: string;
+  userId: string;
 }) {
   const projectId = "app-cifras-bcdce";
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios`;
@@ -12,7 +12,9 @@ export async function criarRepertorioAction(data: {
     fields: {
       titulo: { stringValue: data.titulo },
       descricao: { stringValue: data.descricao || "" },
-      dataEvento: { stringValue: data.dataEvento || "" },
+      userId: { stringValue: data.userId },
+      musicasIds: { arrayValue: { values: [] } },
+      ordem: { integerValue: Date.now() },
       criado_em: { timestampValue: new Date().toISOString() },
     },
   };
