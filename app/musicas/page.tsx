@@ -5,16 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search, Loader2 } from "lucide-react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  deleteDoc, 
-  doc 
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import { isAdmin } from "@/lib/auth"; // <-- Importação limpa da função
+import { auth } from "@/lib/firebase";
+import { getUserRole, getPermissions, UserPermissions } from "@/lib/auth";
+import { serviceGetMusicas, serviceDeletarMusica } from "@/lib/firebase-functions";
 import { salvarOrdemMusicasAction } from "./actions";
 
 interface Musica {
@@ -30,6 +23,7 @@ export default function MusicasPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [musicas, setMusicas] = useState<Musica[]>([]);
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [termoBusca, setTermoBusca] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [salvandoOrdem, setSalvandoOrdem] = useState(false);
@@ -44,50 +38,43 @@ export default function MusicasPage() {
         router.push("/login");
       } else {
         setUser(currentUser);
-        await carregarMusicas(currentUser);
+        
+        // 1. Descobre as permissões do utilizador logado
+        const role = await getUserRole(currentUser);
+        const userPerms = getPermissions(role);
+        setPermissions(userPerms);
+
+        // 2. Carrega as músicas utilizando a função centralizada
+        await carregarMusicas();
       }
     });
 
     return () => unsubscribe();
   }, [router]);
 
-  const carregarMusicas = async (currentUser: User) => {
+  const carregarMusicas = async () => {
     try {
       setCarregando(true);
+      const lista = await serviceGetMusicas();
       
-      // Usa a função centralizada
-      const userIsAdmin = isAdmin(currentUser);
+      const musicasFormatadas: Musica[] = lista.map((item: any) => ({
+        id: item.id,
+        titulo: item.titulo || "Sem título",
+        artista: item.artista || "Artista desconhecido",
+        tomOriginal: item.tomOriginal || "C",
+        ordem: item.ordem ?? 0,
+        userId: item.userId,
+      }));
 
-      let querySnapshot;
-      if (userIsAdmin) {
-        querySnapshot = await getDocs(collection(db, "musicas"));
-      } else {
-        const q = query(collection(db, "musicas"), where("userId", "==", currentUser.uid));
-        querySnapshot = await getDocs(q);
-      }
-      
-      const lista: Musica[] = [];
-      querySnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        lista.push({
-          id: docSnap.id,
-          titulo: data.titulo || "Sem título",
-          artista: data.artista || "Artista desconhecido",
-          tomOriginal: data.tomOriginal || "C",
-          ordem: data.ordem ?? 0,
-          userId: data.userId,
-        });
-      });
-
-      lista.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
-      setMusicas(lista);
+      musicasFormatadas.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      setMusicas(musicasFormatadas);
     } catch (erro) {
       console.error("Erro ao carregar músicas:", erro);
     } finally {
       setCarregando(false);
     }
   };
- 
+
   // Lógica de Arrastar e Reordenar
   const handleDragStart = (index: number) => {
     dragItem.current = index;
@@ -120,16 +107,16 @@ export default function MusicasPage() {
     setItemArrastado(null);
   };
 
-  const handleExcluir = async (id: string, titulo: string, e: React.MouseEvent) => {
+  const handleExcluir = async (id: string, titulo: string, donoId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (confirm(`Tem certeza de que deseja eliminar a música "${titulo}"?`)) {
       try {
-        await deleteDoc(doc(db, "musicas", id));
+        await serviceDeletarMusica(id, donoId);
         setMusicas((prev) => prev.filter((m) => m.id !== id));
-      } catch (erro) {
-        console.error("Erro ao eliminar música:", erro);
+      } catch (erro: any) {
+        alert(erro.message || "Erro ao eliminar música.");
       }
     }
   };
@@ -166,13 +153,16 @@ export default function MusicasPage() {
             <h1 className="text-xl font-bold text-amber-400">Músicas</h1>
           </div>
 
-          <Link
-            href="/musicas/nova"
-            className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
-            title="Nova Música"
-          >
-            <Plus size={20} />
-          </Link>
+          {/* Só mostra o botão de Nova Música se tiver permissão de modificação */}
+          {permissions?.canModifyContent && (
+            <Link
+              href="/musicas/nova"
+              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
+              title="Nova Música"
+            >
+              <Plus size={20} />
+            </Link>
+          )}
         </header>
 
         {/* Campo de Pesquisa */}
@@ -204,12 +194,14 @@ export default function MusicasPage() {
             <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl space-y-3">
               <Music size={36} className="mx-auto opacity-40" />
               <p className="text-sm">Ainda não tens nenhuma música guardada.</p>
-              <Link 
-                href="/musicas/nova"
-                className="inline-block text-xs text-amber-400 font-semibold hover:underline"
-              >
-                Criar a primeira música
-              </Link>
+              {permissions?.canModifyContent && (
+                <Link 
+                  href="/musicas/nova"
+                  className="inline-block text-xs text-amber-400 font-semibold hover:underline"
+                >
+                  Criar a primeira música
+                </Link>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
@@ -259,20 +251,26 @@ export default function MusicasPage() {
                       <span className="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-bold px-2 py-0.5 rounded text-xs">
                         {m.tomOriginal}
                       </span>
-                      <Link
-                        href={`/musicas/${m.id}/editar`}
-                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition"
-                        title="Editar"
-                      >
-                        <Edit size={16} />
-                      </Link>
-                      <button
-                        onClick={(e) => handleExcluir(m.id, m.titulo, e)}
-                        className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+
+                      {/* Botões de Edição e Exclusão restritos a quem pode modificar */}
+                      {permissions?.canModifyContent && (
+                        <>
+                          <Link
+                            href={`/musicas/${m.id}/editar`}
+                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition"
+                            title="Editar"
+                          >
+                            <Edit size={16} />
+                          </Link>
+                          <button
+                            onClick={(e) => handleExcluir(m.id, m.titulo, m.userId, e)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </div>
                 );

@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
+import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
 
 export default function EditarRepertorioPage({
   params,
@@ -18,20 +19,13 @@ export default function EditarRepertorioPage({
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
-  const projectId = "app-cifras-bcdce";
-
   useEffect(() => {
     async function carregarRepertorio() {
       try {
-        const res = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`
-        );
-
-        if (res.ok) {
-          const doc = await res.json();
-          const f = doc.fields || {};
-          setTitulo(f.titulo?.stringValue || "");
-          setDescricao(f.descricao?.stringValue || "");
+        const repertorio: any = await serviceGetRepertorioPorId(repertorioId);
+        if (repertorio) {
+          setTitulo(repertorio.titulo || "");
+          setDescricao(repertorio.descricao || "");
         }
       } catch (erro) {
         console.error("Erro ao carregar repertório:", erro);
@@ -49,24 +43,11 @@ export default function EditarRepertorioPage({
 
     try {
       setSalvando(true);
-      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=descricao`;
-
-      const res = await fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fields: {
-            titulo: { stringValue: titulo },
-            descricao: { stringValue: descricao },
-          },
-        }),
-      });
-
-      if (res.ok) {
-        router.push("/repertorios");
-      }
-    } catch (erro) {
+      await serviceAtualizarRepertorio(repertorioId, { titulo, descricao });
+      router.push("/repertorios");
+    } catch (erro: any) {
       console.error("Erro ao atualizar repertório:", erro);
+      alert(erro.message || "Erro ao atualizar repertório.");
     } finally {
       setSalvando(false);
     }

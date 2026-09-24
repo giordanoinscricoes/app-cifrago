@@ -17,8 +17,8 @@ import {
   Type,
 } from "lucide-react";
 
-// 1. Importa as funções diretamente da tua matriz centralizada
 import { transporCifra, transporNota } from "@/lib/cifras";
+import { serviceGetRepertorioPorId, serviceGetTodasMusicas } from "@/lib/firebase-functions";
 
 interface Musica {
   id: string;
@@ -47,8 +47,6 @@ export default function ModoApresentacaoPage({
   const [isScrolling, setIsScrolling] = useState(false);
   const [scrollSpeed, setScrollSpeed] = useState(0.030); 
   const scrollRef = useRef<number | null>(null);
-
-  const projectId = "app-cifras-bcdce";
 
   useEffect(() => {
     let wakeLock: any = null;
@@ -110,50 +108,36 @@ export default function ModoApresentacaoPage({
     async function carregarApresentacao() {
       try {
         setCarregando(true);
-        const resRep = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`,
-          { cache: "no-store" }
-        );
-        if (!resRep.ok) return;
+        
+        // 1. Busca o repertório através do serviço centralizado
+        const docRep: any = await serviceGetRepertorioPorId(repertorioId);
+        if (!docRep) return;
 
-        const docRep = await resRep.json();
-        const fRep = docRep.fields || {};
-        const musicasIds: string[] =
-          fRep.musicasIds?.arrayValue?.values?.map((v: any) => v.stringValue) || [];
-
+        const musicasIds: string[] = docRep.musicasIds || [];
         if (musicasIds.length === 0) {
           setCarregando(false);
           return;
         }
 
-        const resMusicas = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
-          { cache: "no-store" }
-        );
+        // 2. Busca todas as músicas através do serviço centralizado
+        const listaMusicasGeral = await serviceGetTodasMusicas();
+        const mapaMusicas = new Map<string, Musica>();
 
-        if (resMusicas.ok) {
-          const dadosMusicas = await resMusicas.json();
-          if (dadosMusicas.documents) {
-            const mapaMusicas = new Map<string, Musica>();
-            dadosMusicas.documents.forEach((doc: any) => {
-              const id = doc.name.split("/").pop();
-              const f = doc.fields || {};
-              mapaMusicas.set(id, {
-                id,
-                titulo: f.titulo?.stringValue || "Sem título",
-                artista: f.artista?.stringValue || "Artista desconhecido",
-                tomOriginal: f.tomOriginal?.stringValue || "C",
-                cifra: f.cifra?.stringValue || "Cifra não cadastrada.",
-              });
-            });
+        listaMusicasGeral.forEach((m: any) => {
+          mapaMusicas.set(m.id, {
+            id: m.id,
+            titulo: m.titulo || "Sem título",
+            artista: m.artista || "Artista desconhecido",
+            tomOriginal: m.tomOriginal || "C",
+            cifra: m.cifra || "Cifra não cadastrada.",
+          });
+        });
 
-            const listaOrdenada = musicasIds
-              .map((id) => mapaMusicas.get(id))
-              .filter(Boolean) as Musica[];
+        const listaOrdenada = musicasIds
+          .map((id) => mapaMusicas.get(id))
+          .filter(Boolean) as Musica[];
 
-            setMusicas(listaOrdenada);
-          }
-        }
+        setMusicas(listaOrdenada);
       } catch (erro) {
         console.error("Erro:", erro);
       } finally {

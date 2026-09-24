@@ -5,16 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, Music, Search, Loader2 } from "lucide-react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  deleteDoc, 
-  doc 
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import { isAdmin } from "@/lib/auth"; // <-- Importação limpa da função
+import { auth } from "@/lib/firebase";
+import { getUserRole, getPermissions, UserPermissions } from "@/lib/auth";
+import { serviceGetRepertorios, serviceDeletarRepertorio } from "@/lib/firebase-functions";
 import { salvarOrdemRepertoriosAction } from "./actions";
 
 interface Repertorio {
@@ -30,6 +23,7 @@ export default function RepertoriosPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [repertorios, setRepertorios] = useState<Repertorio[]>([]);
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [termoBusca, setTermoBusca] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [salvandoOrdem, setSalvandoOrdem] = useState(false);
@@ -44,44 +38,39 @@ export default function RepertoriosPage() {
         router.push("/login");
       } else {
         setUser(currentUser);
-        await carregarRepertorios(currentUser);
+        
+        // 1. Obtém as permissões do utilizador
+        const role = await getUserRole(currentUser);
+        const userPerms = getPermissions(role);
+        setPermissions(userPerms);
+
+        // 2. Carrega os repertórios através do serviço centralizado
+        await carregarRepertorios();
       }
     });
 
     return () => unsubscribe();
   }, [router]);
 
-  const carregarRepertorios = async (currentUser: User) => {
+  const carregarRepertorios = async () => {
     try {
       setCarregando(true);
+      const lista = await serviceGetRepertorios();
       
-      // Usa a função centralizada
-      const userIsAdmin = isAdmin(currentUser);
-
-      let querySnapshot;
-      if (userIsAdmin) {
-        querySnapshot = await getDocs(collection(db, "repertorios"));
-      } else {
-        const q = query(collection(db, "repertorios"), where("userId", "==", currentUser.uid));
-        querySnapshot = await getDocs(q);
-      }
-
-      const lista: Repertorio[] = [];
-      querySnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
+      const repertoriosFormatados: Repertorio[] = lista.map((data: any) => {
         const musicasIds = data.musicasIds || [];
-        lista.push({
-          id: docSnap.id,
+        return {
+          id: data.id,
           titulo: data.titulo || "Sem título",
           descricao: data.descricao || "",
           totalMusicas: musicasIds.length,
           ordem: data.ordem ?? 0,
           userId: data.userId,
-        });
+        };
       });
 
-      lista.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
-      setRepertorios(lista);
+      repertoriosFormatados.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      setRepertorios(repertoriosFormatados);
     } catch (erro) {
       console.error("Erro ao carregar repertórios:", erro);
     } finally {
@@ -120,16 +109,16 @@ export default function RepertoriosPage() {
     setItemArrastado(null);
   };
 
-  const handleExcluir = async (id: string, titulo: string, e: React.MouseEvent) => {
+  const handleExcluir = async (id: string, titulo: string, donoId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (confirm(`Tem certeza de que deseja eliminar o repertório "${titulo}"?`)) {
       try {
-        await deleteDoc(doc(db, "repertorios", id));
+        await serviceDeletarRepertorio(id, donoId);
         setRepertorios((prev) => prev.filter((r) => r.id !== id));
-      } catch (erro) {
-        console.error("Erro ao eliminar repertório:", erro);
+      } catch (erro: any) {
+        alert(erro.message || "Erro ao eliminar repertório.");
       }
     }
   };
@@ -166,13 +155,15 @@ export default function RepertoriosPage() {
             <h1 className="text-xl font-bold text-amber-400">Repertórios</h1>
           </div>
 
-          <Link
-            href="/repertorios/novo"
-            className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
-            title="Novo Repertório"
-          >
-            <Plus size={20} />
-          </Link>
+          {permissions?.canModifyContent && (
+            <Link
+              href="/repertorios/novo"
+              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
+              title="Novo Repertório"
+            >
+              <Plus size={20} />
+            </Link>
+          )}
         </header>
 
         {/* Pesquisa */}
@@ -243,7 +234,12 @@ export default function RepertoriosPage() {
                       <h2 className="font-bold text-slate-100 truncate text-base hover:text-amber-400 transition mb-0.5">
                         {r.titulo}
                       </h2>
-                      <p className="text-xs text-slate-400">
+                      {r.descricao && (
+                        <p className="text-xs text-slate-400 truncate mb-1">
+                          {r.descricao}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-400 italic">
                         {r.totalMusicas === 0
                           ? "Nenhuma música adicionada"
                           : `${r.totalMusicas} ${
@@ -253,20 +249,24 @@ export default function RepertoriosPage() {
                     </Link>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      <Link
-                        href={`/repertorios/${r.id}/editar`}
-                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded-lg transition"
-                        title="Editar"
-                      >
-                        <Edit size={16} />
-                      </Link>
-                      <button
-                        onClick={(e) => handleExcluir(r.id, r.titulo, e)}
-                        className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition"
-                        title="Eliminar"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {permissions?.canModifyContent && (
+                        <>
+                          <Link
+                            href={`/repertorios/${r.id}/editar`}
+                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded-lg transition"
+                            title="Editar"
+                          >
+                            <Edit size={16} />
+                          </Link>
+                          <button
+                            onClick={(e) => handleExcluir(r.id, r.titulo, r.userId, e)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
                       <Link
                         href={`/repertorios/${r.id}`}
                         className="p-1.5 text-slate-500 hover:text-slate-200 transition"
