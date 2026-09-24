@@ -16,6 +16,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "CifraGo",
   description: "Seus acordes, o seu ritmo",
+  manifest: "/manifest.json", // <-- Adicionado
+  icons: {                   // <-- Adicionado
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
