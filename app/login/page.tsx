@@ -11,6 +11,7 @@ import {
   signInWithPopup 
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import AboutModal from "@/components/AboutModal";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,6 +21,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [erroMsg, setErroMsg] = useState("");
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -197,17 +199,31 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Rodapé / Ir para o Cadastro */}
-        <div className="text-center pt-2 border-t border-slate-800/80">
+        {/* Rodapé / Ir para o Cadastro e Sobre */}
+        <div className="text-center pt-2 border-t border-slate-800/80 space-y-3">
           <p className="text-xs text-slate-400">
             Ainda não tens uma conta?{" "}
             <Link href="/login-cadastro" className="text-amber-400 font-semibold hover:underline">
               Criar conta
             </Link>
           </p>
+
+          {/* Botão que abre a janela "Sobre" estilo Firefox */}
+          <div className="pt-2 border-t border-slate-800/50 flex justify-center">
+            <button 
+              type="button"
+              onClick={() => setIsAboutOpen(true)}
+              className="text-[11px] uppercase tracking-widest text-slate-400 hover:text-amber-400 font-medium transition"
+            >
+              Sobre o CifraGo
+            </button>
+          </div>
         </div>
 
       </div>
+
+      {/* Modal Sobre Atribuído */}
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </main>
   );
 }

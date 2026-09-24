@@ -129,7 +129,7 @@ export default function MusicasPage() {
 
   if (carregando) {
     return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 w-full flex items-center justify-center">
         <div className="flex items-center gap-2 text-amber-400">
           <Loader2 size={24} className="animate-spin" />
           <p className="text-sm">A carregar músicas...</p>
@@ -139,8 +139,8 @@ export default function MusicasPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
-      <div>
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
+      <div className="w-full max-w-4xl mx-auto flex-1">
         {/* Cabeçalho */}
         <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
           <div className="flex items-center gap-3">
