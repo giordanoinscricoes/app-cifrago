@@ -116,6 +116,7 @@ export async function serviceDeletarRepertorio(idRepertorio: string, donoIdReper
 
   await deleteDoc(doc(db, "repertorios", idRepertorio));
 }
+
 /**
  * Retorna os dados de um repertório específico pelo ID.
  */
@@ -127,9 +128,12 @@ export async function serviceGetRepertorioPorId(idRepertorio: string) {
 }
 
 /**
- * Atualiza o título e a descrição de um repertório.
+ * Atualiza os dados de um repertório (título, descrição e/ou músicas).
  */
-export async function serviceAtualizarRepertorio(idRepertorio: string, dados: { titulo: string; descricao: string }) {
+export async function serviceAtualizarRepertorio(
+  idRepertorio: string, 
+  dados: { titulo?: string; descricao?: string; musicasIds?: string[] }
+) {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("Utilizador não autenticado.");
 
@@ -141,11 +145,15 @@ export async function serviceAtualizarRepertorio(idRepertorio: string, dados: { 
   }
 
   const docRef = doc(db, "repertorios", idRepertorio);
-  await updateDoc(docRef, {
-    titulo: dados.titulo,
-    descricao: dados.descricao
-  });
+  
+  const dadosAtualizacao: any = {};
+  if (dados.titulo !== undefined) dadosAtualizacao.titulo = dados.titulo;
+  if (dados.descricao !== undefined) dadosAtualizacao.descricao = dados.descricao;
+  if (dados.musicasIds !== undefined) dadosAtualizacao.musicasIds = dados.musicasIds;
+
+  await updateDoc(docRef, dadosAtualizacao);
 }
+
 /**
  * Retorna todas as músicas (global ou filtrada por utilizador, conforme permissão).
  */
