@@ -5,10 +5,9 @@ export async function criarMusicaAction(data: {
   artista: string;
   tomOriginal: string;
   cifra: string;
+  userId: string; // <--- 1. Receber o userId
 }) {
-  // ID exato do seu projeto Firebase
   const projectId = "app-cifras-bcdce";
-
   const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`;
 
   const bodyData = {
@@ -18,6 +17,7 @@ export async function criarMusicaAction(data: {
       tomOriginal: { stringValue: data.tomOriginal },
       tomAtual: { stringValue: data.tomOriginal },
       cifra: { stringValue: data.cifra },
+      userId: { stringValue: data.userId || "" }, // <--- 2. Gravar o userId no Firestore
       criado_em: { timestampValue: new Date().toISOString() },
     },
   };

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, Music, Search, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, FolderKanban, Search, Loader2 } from "lucide-react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { getUserRole, getPermissions, UserPermissions } from "@/lib/auth";
@@ -134,7 +134,7 @@ export default function RepertoriosPage() {
       <main className="min-h-screen bg-slate-900 text-slate-100 p-4 w-full flex items-center justify-center">
         <div className="flex items-center gap-2 text-amber-400">
           <Loader2 size={24} className="animate-spin" />
-          <p className="text-sm">A carregar músicas...</p>
+          <p className="text-sm">A carregar repertórios...</p>
         </div>
       </main>
     );
@@ -143,7 +143,7 @@ export default function RepertoriosPage() {
   return (
     <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
       <div className="w-full max-w-4xl mx-auto flex-1">
-        {/* Cabeçalho */}
+        {/* Cabeçalho corrigido para Repertórios */}
         <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
           <div className="flex items-center gap-3">
             <Link
@@ -152,15 +152,15 @@ export default function RepertoriosPage() {
             >
               <ArrowLeft size={20} />
             </Link>
-            <h1 className="text-xl font-bold text-amber-400">Músicas</h1>
+            <h1 className="text-xl font-bold text-amber-400">Repertórios</h1>
           </div>
 
-          {/* Só mostra o botão de Nova Música se tiver permissão de modificação */}
+          {/* Botão para criar novo repertório apontando para /repertorios/novo */}
           {permissions?.canModifyContent && (
             <Link
-              href="/musicas/nova"
+              href="/repertorios/novo"
               className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
-              title="Nova Música"
+              title="Novo Repertório"
             >
               <Plus size={20} />
             </Link>
@@ -193,9 +193,17 @@ export default function RepertoriosPage() {
           </div>
 
           {repertoriosFiltrados.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
-              <Music size={36} className="mx-auto mb-2 opacity-40" />
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl space-y-3">
+              <FolderKanban size={36} className="mx-auto opacity-40" />
               <p className="text-sm">Nenhum repertório encontrado.</p>
+              {permissions?.canModifyContent && (
+                <Link 
+                  href="/repertorios/novo"
+                  className="inline-block text-xs text-amber-400 font-semibold hover:underline"
+                >
+                  Criar o primeiro repertório
+                </Link>
+              )}
             </div>
           ) : (
             <div className="space-y-3">

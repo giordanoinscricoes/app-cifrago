@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { criarMusicaAction } from "./actions";
 import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
 import Link from "next/link";
+import { auth } from "@/lib/firebase";
 
 export default function NovaMusicaPage() {
   const router = useRouter();
@@ -34,18 +35,37 @@ export default function NovaMusicaPage() {
 
   const salvarMusica = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Evita múltiplos cliques se já estiver a carregar
+    if (carregando) return;
+    
     setMensagemErro("");
 
-    if (!titulo.trim()) return alert("Digite o título da música!");
+    // Validação 1: Título obrigatório
+    if (!titulo.trim()) {
+      alert("Digite o título da música!");
+      return;
+    }
+
+    // Validação 2: Alerta se a cifra estiver vazia (Ideia 2)
+    if (!cifra.trim()) {
+      const confirmar = window.confirm(
+        "Atenção: O campo de cifra/letra está vazio. Deseja realmente guardar a música sem conteúdo?"
+      );
+      if (!confirmar) return; // Cancela a submissão se o utilizador desistir
+    }
 
     try {
-      setCarregando(true);
+      setCarregando(true); // Bloqueia imediatamente o botão
+
+      const user = auth.currentUser;
 
       const resultado = await criarMusicaAction({
         titulo,
         artista,
         tomOriginal,
         cifra,
+        userId: user ? user.uid : "",
       });
 
       if (resultado.sucesso) {
@@ -53,10 +73,10 @@ export default function NovaMusicaPage() {
         router.refresh();
       } else {
         setMensagemErro(resultado.erro || "Ocorreu um erro ao salvar.");
+        setCarregando(false); // Liberta o botão apenas se houver erro
       }
     } catch (erro: any) {
       setMensagemErro("Erro ao enviar dados para o servidor.");
-    } finally {
       setCarregando(false);
     }
   };
