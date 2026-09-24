@@ -2,7 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search, Loader2 } from "lucide-react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  deleteDoc, 
+  doc 
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { isAdmin } from "@/lib/auth"; // <-- Importação limpa da função
 import { salvarOrdemMusicasAction } from "./actions";
 
 interface Musica {
@@ -11,60 +23,71 @@ interface Musica {
   artista: string;
   tomOriginal: string;
   ordem?: number;
+  userId: string;
 }
 
 export default function MusicasPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
   const [musicas, setMusicas] = useState<Musica[]>([]);
   const [termoBusca, setTermoBusca] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [salvandoOrdem, setSalvandoOrdem] = useState(false);
 
-  // Controlo do Arraste
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const [itemArrastado, setItemArrastado] = useState<number | null>(null);
 
-  const projectId = "app-cifras-bcdce";
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+        await carregarMusicas(currentUser);
+      }
+    });
 
-  const carregarMusicas = async () => {
+    return () => unsubscribe();
+  }, [router]);
+
+  const carregarMusicas = async (currentUser: User) => {
     try {
       setCarregando(true);
-      const res = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
-        { cache: "no-store" }
-      );
+      
+      // Usa a função centralizada
+      const userIsAdmin = isAdmin(currentUser);
 
-      if (res.ok) {
-        const dados = await res.json();
-        if (dados.documents) {
-          const lista: Musica[] = dados.documents.map((doc: any) => {
-            const id = doc.name.split("/").pop();
-            const f = doc.fields || {};
-            return {
-              id,
-              titulo: f.titulo?.stringValue || "Sem título",
-              artista: f.artista?.stringValue || "Artista desconhecido",
-              tomOriginal: f.tomOriginal?.stringValue || "C",
-              ordem: f.ordem?.integerValue ? parseInt(f.ordem.integerValue) : 0,
-            };
-          });
-
-          // Ordena pelo campo 'ordem'
-          lista.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
-          setMusicas(lista);
-        }
+      let querySnapshot;
+      if (userIsAdmin) {
+        querySnapshot = await getDocs(collection(db, "musicas"));
+      } else {
+        const q = query(collection(db, "musicas"), where("userId", "==", currentUser.uid));
+        querySnapshot = await getDocs(q);
       }
+      
+      const lista: Musica[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        lista.push({
+          id: docSnap.id,
+          titulo: data.titulo || "Sem título",
+          artista: data.artista || "Artista desconhecido",
+          tomOriginal: data.tomOriginal || "C",
+          ordem: data.ordem ?? 0,
+          userId: data.userId,
+        });
+      });
+
+      lista.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      setMusicas(lista);
     } catch (erro) {
       console.error("Erro ao carregar músicas:", erro);
     } finally {
       setCarregando(false);
     }
   };
-
-  useEffect(() => {
-    carregarMusicas();
-  }, []);
-
+ 
   // Lógica de Arrastar e Reordenar
   const handleDragStart = (index: number) => {
     dragItem.current = index;
@@ -103,14 +126,8 @@ export default function MusicasPage() {
 
     if (confirm(`Tem certeza de que deseja eliminar a música "${titulo}"?`)) {
       try {
-        const res = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${id}`,
-          { method: "DELETE" }
-        );
-
-        if (res.ok) {
-          setMusicas((prev) => prev.filter((m) => m.id !== id));
-        }
+        await deleteDoc(doc(db, "musicas", id));
+        setMusicas((prev) => prev.filter((m) => m.id !== id));
       } catch (erro) {
         console.error("Erro ao eliminar música:", erro);
       }
@@ -126,7 +143,10 @@ export default function MusicasPage() {
   if (carregando) {
     return (
       <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
-        <p className="text-slate-400">A carregar músicas...</p>
+        <div className="flex items-center gap-2 text-amber-400">
+          <Loader2 size={24} className="animate-spin" />
+          <p className="text-sm">A carregar músicas...</p>
+        </div>
       </main>
     );
   }
@@ -171,7 +191,7 @@ export default function MusicasPage() {
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Todas as Músicas ({musicasFiltradas.length})
+              Catálogo de Músicas ({musicasFiltradas.length})
             </p>
             {salvandoOrdem && (
               <span className="text-[10px] text-amber-400 animate-pulse font-mono">
@@ -181,14 +201,19 @@ export default function MusicasPage() {
           </div>
 
           {musicasFiltradas.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
-              <Music size={36} className="mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Nenhuma música encontrada.</p>
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl space-y-3">
+              <Music size={36} className="mx-auto opacity-40" />
+              <p className="text-sm">Ainda não tens nenhuma música guardada.</p>
+              <Link 
+                href="/musicas/nova"
+                className="inline-block text-xs text-amber-400 font-semibold hover:underline"
+              >
+                Criar a primeira música
+              </Link>
             </div>
           ) : (
             <div className="space-y-2">
               {musicasFiltradas.map((m, index) => {
-                // Ao filtrar, desativamos o reordenamento visual direto para evitar desalinhamento de índices
                 const modoBuscaAtivo = termoBusca.trim().length > 0;
 
                 return (

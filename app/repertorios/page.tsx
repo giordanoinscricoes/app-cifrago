@@ -2,7 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, Music, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, Music, Search, Loader2 } from "lucide-react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  deleteDoc, 
+  doc 
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { isAdmin } from "@/lib/auth"; // <-- Importação limpa da função
 import { salvarOrdemRepertoriosAction } from "./actions";
 
 interface Repertorio {
@@ -11,61 +23,72 @@ interface Repertorio {
   descricao: string;
   totalMusicas: number;
   ordem?: number;
+  userId: string;
 }
 
 export default function RepertoriosPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
   const [repertorios, setRepertorios] = useState<Repertorio[]>([]);
   const [termoBusca, setTermoBusca] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [salvandoOrdem, setSalvandoOrdem] = useState(false);
 
-  // Controlo de Arraste Nativo
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const [itemArrastado, setItemArrastado] = useState<number | null>(null);
 
-  const projectId = "app-cifras-bcdce";
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+        await carregarRepertorios(currentUser);
+      }
+    });
 
-  const carregarRepertorios = async () => {
+    return () => unsubscribe();
+  }, [router]);
+
+  const carregarRepertorios = async (currentUser: User) => {
     try {
       setCarregando(true);
-      const res = await fetch(
-        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios`,
-        { cache: "no-store" }
-      );
+      
+      // Usa a função centralizada
+      const userIsAdmin = isAdmin(currentUser);
 
-      if (res.ok) {
-        const dados = await res.json();
-        if (dados.documents) {
-          const lista: Repertorio[] = dados.documents.map((doc: any) => {
-            const id = doc.name.split("/").pop();
-            const f = doc.fields || {};
-            const musicasIds = f.musicasIds?.arrayValue?.values || [];
-            return {
-              id,
-              titulo: f.titulo?.stringValue || "Sem título",
-              descricao: f.descricao?.stringValue || "",
-              totalMusicas: musicasIds.length,
-              ordem: f.ordem?.integerValue ? parseInt(f.ordem.integerValue) : 0,
-            };
-          });
-
-          // Ordena pelo campo 'ordem'
-          lista.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
-          setRepertorios(lista);
-        }
+      let querySnapshot;
+      if (userIsAdmin) {
+        querySnapshot = await getDocs(collection(db, "repertorios"));
+      } else {
+        const q = query(collection(db, "repertorios"), where("userId", "==", currentUser.uid));
+        querySnapshot = await getDocs(q);
       }
+
+      const lista: Repertorio[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        const musicasIds = data.musicasIds || [];
+        lista.push({
+          id: docSnap.id,
+          titulo: data.titulo || "Sem título",
+          descricao: data.descricao || "",
+          totalMusicas: musicasIds.length,
+          ordem: data.ordem ?? 0,
+          userId: data.userId,
+        });
+      });
+
+      lista.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      setRepertorios(lista);
     } catch (erro) {
       console.error("Erro ao carregar repertórios:", erro);
     } finally {
       setCarregando(false);
     }
   };
-
-  useEffect(() => {
-    carregarRepertorios();
-  }, []);
-
+  
   const handleDragStart = (index: number) => {
     dragItem.current = index;
     setItemArrastado(index);
@@ -103,14 +126,8 @@ export default function RepertoriosPage() {
 
     if (confirm(`Tem certeza de que deseja eliminar o repertório "${titulo}"?`)) {
       try {
-        const res = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${id}`,
-          { method: "DELETE" }
-        );
-
-        if (res.ok) {
-          setRepertorios((prev) => prev.filter((r) => r.id !== id));
-        }
+        await deleteDoc(doc(db, "repertorios", id));
+        setRepertorios((prev) => prev.filter((r) => r.id !== id));
       } catch (erro) {
         console.error("Erro ao eliminar repertório:", erro);
       }
@@ -126,7 +143,10 @@ export default function RepertoriosPage() {
   if (carregando) {
     return (
       <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
-        <p className="text-slate-400">A carregar repertórios...</p>
+        <div className="flex items-center gap-2 text-amber-400">
+          <Loader2 size={24} className="animate-spin" />
+          <p className="text-sm">A carregar repertórios...</p>
+        </div>
       </main>
     );
   }

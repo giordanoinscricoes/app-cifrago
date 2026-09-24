@@ -1,13 +1,60 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Music, FolderKanban } from "lucide-react";
+import { Music, FolderKanban, LogOut, Loader2 } from "lucide-react";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export default function HomePage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+      }
+      setLoadingAuth(false);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push("/login");
+  };
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-400">
+        <Loader2 size={32} className="animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
       <div>
+        {/* Barra superior com Utilizador e Sair */}
+        <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-900 text-xs text-slate-400">
+          <span className="truncate max-w-[220px]">{user?.email}</span>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1 text-slate-400 hover:text-red-400 transition"
+            title="Terminar Sessão"
+          >
+            <LogOut size={14} />
+            <span>Sair</span>
+          </button>
+        </div>
+
         {/* Cabeçalho com Logo CifraGo Centralizada */}
         <header className="flex flex-col items-center py-4 border-b border-slate-800/80 mb-6">
           <div className="relative w-32 h-28 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">

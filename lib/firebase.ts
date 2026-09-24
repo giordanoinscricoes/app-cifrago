@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth"; // <-- Adicionado
 import { initializeFirestore, memoryLocalCache } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -11,6 +12,9 @@ const firebaseConfig = {
 };
 
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// Exporta o Auth para usar no Login
+export const auth = getAuth(app); // <-- Adicionado
 
 // Desativa conexões de stream/webchannel e força o transporte por requisições HTTP Fetch puras
 export const db = initializeFirestore(app, {
