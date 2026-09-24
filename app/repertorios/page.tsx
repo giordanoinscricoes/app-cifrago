@@ -131,18 +131,18 @@ export default function RepertoriosPage() {
 
   if (carregando) {
     return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 w-full flex items-center justify-center">
         <div className="flex items-center gap-2 text-amber-400">
           <Loader2 size={24} className="animate-spin" />
-          <p className="text-sm">A carregar repertórios...</p>
+          <p className="text-sm">A carregar músicas...</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
-      <div>
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
+      <div className="w-full max-w-4xl mx-auto flex-1">
         {/* Cabeçalho */}
         <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
           <div className="flex items-center gap-3">
@@ -152,14 +152,15 @@ export default function RepertoriosPage() {
             >
               <ArrowLeft size={20} />
             </Link>
-            <h1 className="text-xl font-bold text-amber-400">Repertórios</h1>
+            <h1 className="text-xl font-bold text-amber-400">Músicas</h1>
           </div>
 
+          {/* Só mostra o botão de Nova Música se tiver permissão de modificação */}
           {permissions?.canModifyContent && (
             <Link
-              href="/repertorios/novo"
+              href="/musicas/nova"
               className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
-              title="Novo Repertório"
+              title="Nova Música"
             >
               <Plus size={20} />
             </Link>
