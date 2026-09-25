@@ -1,0 +1,4441 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  login/
+    page.tsx
+  login-cadastro/
+    page.tsx
+  musicas/
+    [id]/
+      editar/
+        page.tsx
+      actions.ts
+      page.tsx
+    nova/
+      actions.ts
+      page.tsx
+    actions.ts
+    page.tsx
+  repertorios/
+    [id]/
+      apresentacao/
+        page.tsx
+      editar/
+        page.tsx
+      selecionar-musicas/
+        page.tsx
+      actions.ts
+      page.tsx
+    novo/
+      actions.ts
+      page.tsx
+    actions.ts
+    page.tsx
+  favicon.ico
+  globals.css
+  layout.tsx
+  page.tsx
+components/
+  AboutModal.tsx
+  BotaoInicio.tsx
+lib/
+  auth.ts
+  cifras.ts
+  firebase-admin.ts
+  firebase-functions.ts
+  firebase.ts
+public/
+  file.svg
+  globe.svg
+  logo.png
+  logoGG.png
+  manifest.json
+  next.svg
+  vercel.svg
+  window.svg
+.gitignore
+AGENTS.md
+CLAUDE.md
+eslint.config.mjs
+next.config.ts
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/login-cadastro/page.tsx">
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { 
+  createUserWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from "firebase/auth";
+import { auth } from "@/lib/firebase";
+
+export default function RegistoPage() {
+  const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [erroMsg, setErroMsg] = useState("");
+
+  const handleRegisto = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErroMsg("");
+
+    if (password !== confirmPassword) {
+      setErroMsg("As senhas não coincidem. Verifique e tente novamente.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      await createUserWithEmailAndPassword(auth, email, password);
+      router.push("/");
+    } catch (error: any) {
+      console.error("Erro no registo:", error);
+      if (error.code === "auth/email-already-in-use") {
+        setErroMsg("Este e-mail já está associado a uma conta.");
+      } else if (error.code === "auth/weak-password") {
+        setErroMsg("A senha deve ter pelo menos 6 caracteres.");
+      } else if (error.code === "auth/invalid-email") {
+        setErroMsg("O formato do e-mail é inválido.");
+      } else {
+        setErroMsg("Ocorreu um erro ao criar a conta. Tente novamente.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    setErroMsg("");
+
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push("/");
+    } catch (error: any) {
+      console.error("Erro no login com Google:", error);
+      setErroMsg("Não foi possível autenticar com o Google. Tente novamente.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-md border border-amber-500/20 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
+        
+        {/* Cabeçalho com o Logótipo do CifraGo */}
+        <div className="flex flex-col items-center py-2 border-b border-slate-800/80 pb-6">
+          <div className="relative w-28 h-24 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
+            <Image
+              src="/logo.png"
+              alt="Logo CifraGo"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
+            Seus acordes, o seu ritmo
+          </p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
+            Crie sua Conta
+          </h1>
+        </div>
+
+        {/* Mensagem de Erro, caso exista */}
+        {erroMsg && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl text-center">
+            {erroMsg}
+          </div>
+        )}
+
+        {/* Botão Google */}
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={googleLoading || loading}
+          className="w-full bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium py-3 rounded-xl transition flex items-center justify-center gap-3 text-sm shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {googleLoading ? (
+            <Loader2 size={18} className="animate-spin text-amber-400" />
+          ) : (
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path
+                fill="#EA4335"
+                d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.8 5 12 5z"
+              />
+              <path
+                fill="#4285F4"
+                d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.3 14.7c-.2-.7-.3-1.5-.3-2.3s.1-1.6.3-2.3L1.6 7.2C.6 9.2 0 11.5 0 13.9s.6 4.7 1.6 6.7l3.7-2.9c-.2-.7-.3-1.5-.3-2.3z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.2 0-5.8-2.1-6.7-5.1L1.6 16c1.9 3.8 5.8 7 10.4 7z"
+              />
+            </svg>
+          )}
+          <span>Continuar com o Google</span>
+        </button>
+
+        <div className="flex items-center my-4">
+          <div className="flex-grow border-t border-slate-800"></div>
+          <span className="px-3 text-xs text-slate-500 uppercase tracking-widest">ou e-mail</span>
+          <div className="flex-grow border-t border-slate-800"></div>
+        </div>
+
+        {/* Formulário Tradicional */}
+        <form onSubmit={handleRegisto} className="space-y-4">
+          
+          {/* Campo E-mail */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              E-mail
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Mail size={16} />
+              </span>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nome@exemplo.com"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
+          </div>
+
+          {/* Campo Senha */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Senha (mínimo 6 carateres)
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Lock size={16} />
+              </span>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Campo Confirmar Senha */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Confirmar Senha
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Lock size={16} />
+              </span>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
+          </div>
+
+          {/* Botão Submeter */}
+          <button
+            type="submit"
+            disabled={loading || googleLoading}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>A criar conta...</span>
+              </>
+            ) : (
+              <>
+                <span>Registar</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Rodapé / Voltar ao Login */}
+        <div className="text-center pt-2 border-t border-slate-800/80">
+          <p className="text-xs text-slate-400">
+            Já tens uma conta?{" "}
+            <Link href="/login" className="text-amber-400 font-semibold hover:underline">
+              Fazer login
+            </Link>
+          </p>
+        </div>
+
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/musicas/[id]/editar/page.tsx">
+"use client";
+
+import { useState, useEffect, use } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Save } from "lucide-react";
+import { editarMusicaAction } from "../actions";
+
+export default function EditarMusicaPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: musicaId } = use(params);
+  const router = useRouter();
+
+  const [titulo, setTitulo] = useState("");
+  const [artista, setArtista] = useState("");
+  const [tomOriginal, setTomOriginal] = useState("C");
+  const [cifra, setCifra] = useState("");
+
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  const projectId = "app-cifras-bcdce";
+
+  useEffect(() => {
+    async function carregarMusica() {
+      try {
+        const res = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`,
+          { cache: "no-store" }
+        );
+
+        if (res.ok) {
+          const doc = await res.json();
+          const f = doc.fields || {};
+          setTitulo(f.titulo?.stringValue || "");
+          setArtista(f.artista?.stringValue || "");
+          setTomOriginal(f.tomOriginal?.stringValue || "C");
+          setCifra(f.cifra?.stringValue || "");
+        }
+      } catch (e) {
+        console.error("Erro ao carregar música:", e);
+      } finally {
+        setCarregando(false);
+      }
+    }
+    carregarMusica();
+  }, [musicaId]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo || !artista) {
+      alert("Por favor, preencha o título e o artista.");
+      return;
+    }
+
+    setSalvando(true);
+    const res = await editarMusicaAction(musicaId, {
+      titulo,
+      artista,
+      tomOriginal,
+      cifra,
+    });
+
+    if (res.sucesso) {
+      router.push("/musicas");
+    } else {
+      alert(res.erro || "Erro ao salvar alterações.");
+      setSalvando(false);
+    }
+  };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-slate-400">A carregar música...</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
+      <div>
+        <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
+          <Link
+            href="/musicas"
+            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+          >
+            <ArrowLeft size={20} />
+          </Link>
+          <h1 className="text-xl font-bold text-amber-400">Editar Música</h1>
+        </header>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Título da Música *
+            </label>
+            <input
+              type="text"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Artista / Banda *
+            </label>
+            <input
+              type="text"
+              value={artista}
+              onChange={(e) => setArtista(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Tom Original
+            </label>
+            <select
+              value={tomOriginal}
+              onChange={(e) => setTomOriginal(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
+            >
+              {[
+                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+                "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
+              ].map((tom) => (
+                <option key={tom} value={tom}>
+                  {tom}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Letra / Cifra
+            </label>
+            <textarea
+              value={cifra}
+              onChange={(e) => setCifra(e.target.value)}
+              rows={8}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-amber-400 transition"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={salvando}
+            className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-700 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 transition mt-6"
+          >
+            <Save size={20} />
+            {salvando ? "A guardar..." : "Salvar Alterações"}
+          </button>
+        </form>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/musicas/[id]/actions.ts">
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+const projectId = "app-cifras-bcdce";
+
+export async function editarMusicaAction(
+  musicaId: string,
+  dados: {
+    titulo: string;
+    artista: string;
+    tomOriginal: string;
+    cifra: string;
+  }
+) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=artista&updateMask.fieldPaths=tomOriginal&updateMask.fieldPaths=cifra`;
+
+  const bodyData = {
+    fields: {
+      titulo: { stringValue: dados.titulo },
+      artista: { stringValue: dados.artista },
+      tomOriginal: { stringValue: dados.tomOriginal },
+      cifra: { stringValue: dados.cifra },
+    },
+  };
+
+  try {
+    const resposta = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resposta.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar a música no banco de dados." };
+    }
+
+    revalidatePath("/musicas");
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+export async function excluirMusicaAction(musicaId: string) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`;
+
+  try {
+    const resposta = await fetch(url, {
+      method: "DELETE",
+    });
+
+    if (!resposta.ok) {
+      return { sucesso: false, erro: "Erro ao excluir a música." };
+    }
+
+    revalidatePath("/musicas");
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// --- FUNÇÃO BUSCAR MUSICA POR ID ACTION ---
+
+export async function buscarMusicaPorIdAction(musicaId: string) {
+  try {
+    const res = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`,
+      { cache: "no-store" }
+    );
+
+    if (!res.ok) {
+      return { sucesso: false, erro: "Música não encontrada." };
+    }
+
+    const doc = await res.json();
+    const f = doc.fields || {};
+
+    return {
+      sucesso: true,
+      musica: {
+        id: musicaId,
+        titulo: f.titulo?.stringValue || "Sem título",
+        artista: f.artista?.stringValue || "Artista desconhecido",
+        tomOriginal: f.tomOriginal?.stringValue || "C",
+        cifra: f.cifra?.stringValue || f.conteudo?.stringValue || "",
+      },
+    };
+  } catch (erro: any) {
+    console.error("Erro ao buscar música no servidor:", erro);
+    return { sucesso: false, erro: "Erro de conexão ao carregar a música." };
+  }
+}
+</file>
+
+<file path="app/musicas/actions.ts">
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+const PROJECT_ID = "app-cifras-bcdce";
+
+export async function salvarOrdemMusicasAction(musicasOrdenadas: { id: string }[]) {
+  try {
+    // Atualiza o campo 'ordem' no Firestore para cada música na nova sequência
+    for (let i = 0; i < musicasOrdenadas.length; i++) {
+      const m = musicasOrdenadas[i];
+      const urlPatch = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/musicas/${m.id}?updateMask.fieldPaths=ordem`;
+
+      await fetch(urlPatch, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            ordem: { integerValue: i },
+          },
+        }),
+      });
+    }
+
+    revalidatePath("/musicas");
+    return { sucesso: true };
+  } catch (erro: any) {
+    console.error("Erro ao guardar ordem das músicas:", erro);
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+</file>
+
+<file path="app/repertorios/[id]/actions.ts">
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+const projectId = "app-cifras-bcdce";
+
+// Editar dados básicos do repertório (título e descrição)
+export async function editarRepertorioAction(
+  repertorioId: string,
+  dados: {
+    titulo: string;
+    descricao: string;
+  }
+) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=descricao`;
+
+  const bodyData = {
+    fields: {
+      titulo: { stringValue: dados.titulo },
+      descricao: { stringValue: dados.descricao },
+    },
+  };
+
+  try {
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!res.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar repertório." };
+    }
+
+    revalidatePath("/repertorios");
+    revalidatePath(`/repertorios/${repertorioId}`);
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Excluir repertório
+export async function excluirRepertorioAction(repertorioId: string) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
+
+  try {
+    const res = await fetch(url, { method: "DELETE" });
+
+    if (!res.ok) {
+      return { sucesso: false, erro: "Erro ao excluir repertório." };
+    }
+
+    revalidatePath("/repertorios");
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Substituir/Atualizar toda a lista de IDs de músicas do repertório
+export async function salvarMusicasDoRepertorioAction(
+  repertorioId: string,
+  novosMusicasIds: string[]
+) {
+  const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
+
+  const bodyData = {
+    fields: {
+      musicasIds: {
+        arrayValue: {
+          values: novosMusicasIds.map((id) => ({ stringValue: id })),
+        },
+      },
+    },
+  };
+
+  try {
+    const resPatch = await fetch(urlPatch, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resPatch.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar músicas no banco." };
+    }
+
+    revalidatePath(`/repertorios/${repertorioId}`);
+    revalidatePath("/repertorios");
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Adicionar uma única música
+export async function adicionarMusicaAoRepertorioAction(
+  repertorioId: string,
+  musicaId: string
+) {
+  const urlGet = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
+
+  try {
+    const res = await fetch(urlGet, { cache: "no-store" });
+    if (!res.ok) return { sucesso: false, erro: "Repertório não encontrado." };
+
+    const doc = await res.json();
+    const fields = doc.fields || {};
+
+    const musicasAtuais: string[] =
+      fields.musicasIds?.arrayValue?.values?.map(
+        (v: any) => v.stringValue
+      ) || [];
+
+    if (musicasAtuais.includes(musicaId)) {
+      return { sucesso: false, erro: "Música já adicionada a este repertório." };
+    }
+
+    const novasMusicas = [...musicasAtuais, musicaId];
+
+    const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
+
+    const bodyData = {
+      fields: {
+        musicasIds: {
+          arrayValue: {
+            values: novasMusicas.map((id) => ({ stringValue: id })),
+          },
+        },
+      },
+    };
+
+    const resPatch = await fetch(urlPatch, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resPatch.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar repertório no servidor." };
+    }
+
+    revalidatePath(`/repertorios/${repertorioId}`);
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Remover uma música do repertório
+export async function removerMusicaDoRepertorioAction(
+  repertorioId: string,
+  musicaId: string
+) {
+  const urlGet = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
+
+  try {
+    const res = await fetch(urlGet, { cache: "no-store" });
+    if (!res.ok) return { sucesso: false, erro: "Repertório não encontrado." };
+
+    const doc = await res.json();
+    const fields = doc.fields || {};
+
+    const musicasAtuais: string[] =
+      fields.musicasIds?.arrayValue?.values?.map(
+        (v: any) => v.stringValue
+      ) || [];
+
+    const novasMusicas = musicasAtuais.filter((id) => id !== musicaId);
+
+    const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
+
+    const bodyData = {
+      fields: {
+        musicasIds: {
+          arrayValue: {
+            values: novasMusicas.map((id) => ({ stringValue: id })),
+          },
+        },
+      },
+    };
+
+    const resPatch = await fetch(urlPatch, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resPatch.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar repertório." };
+    }
+
+    revalidatePath(`/repertorios/${repertorioId}`);
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Reordenar músicas do repertório
+export async function reordenarMusicasDoRepertorioAction(
+  repertorioId: string,
+  novosMusicasIds: string[]
+) {
+  const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
+
+  const bodyData = {
+    fields: {
+      musicasIds: {
+        arrayValue: {
+          values: novosMusicasIds.map((id) => ({ stringValue: id })),
+        },
+      },
+    },
+  };
+
+  try {
+    const resPatch = await fetch(urlPatch, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resPatch.ok) {
+      return { sucesso: false, erro: "Erro ao reordenar músicas no banco." };
+    }
+
+    revalidatePath(`/repertorios/${repertorioId}`);
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+</file>
+
+<file path="app/repertorios/[id]/page.tsx">
+"use client";
+
+import { useState, useEffect, use, useRef } from "react";
+import Link from "next/link";
+import { ArrowLeft, Plus, GripVertical, Trash2, Edit, Music, ChevronRight, Play } from "lucide-react";
+import {
+  removerMusicaDoRepertorioAction,
+  reordenarMusicasDoRepertorioAction,
+} from "./actions";
+
+interface Musica {
+  id: string;
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+}
+
+interface Repertorio {
+  id: string;
+  titulo: string;
+  descricao: string;
+  musicasIds: string[];
+}
+
+export default function DetalhesRepertorioPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: repertorioId } = use(params);
+
+  const [repertorio, setRepertorio] = useState<Repertorio | null>(null);
+  const [musicas, setMusicas] = useState<Musica[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [itemArrastado, setItemArrastado] = useState<number | null>(null);
+
+  const projectId = "app-cifras-bcdce";
+
+  useEffect(() => {
+    async function carregarDados() {
+      try {
+        setCarregando(true);
+
+        const resRep = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`,
+          { cache: "no-store" }
+        );
+
+        if (!resRep.ok) return;
+
+        const docRep = await resRep.json();
+        const fRep = docRep.fields || {};
+        const musicasIds: string[] =
+          fRep.musicasIds?.arrayValue?.values?.map(
+            (v: any) => v.stringValue
+          ) || [];
+
+        setRepertorio({
+          id: repertorioId,
+          titulo: fRep.titulo?.stringValue || "Sem título",
+          descricao: fRep.descricao?.stringValue || "",
+          musicasIds,
+        });
+
+        const resMusicas = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
+          { cache: "no-store" }
+        );
+
+        if (resMusicas.ok) {
+          const dadosMusicas = await resMusicas.json();
+          if (dadosMusicas.documents) {
+            const mapaMusicas = new Map<string, Musica>();
+            dadosMusicas.documents.forEach((doc: any) => {
+              const id = doc.name.split("/").pop();
+              const f = doc.fields || {};
+              mapaMusicas.set(id, {
+                id,
+                titulo: f.titulo?.stringValue || "Sem título",
+                artista: f.artista?.stringValue || "Artista desconhecido",
+                tomOriginal: f.tomOriginal?.stringValue || "C",
+              });
+            });
+
+            const listaOrdenada = musicasIds
+              .map((id) => mapaMusicas.get(id))
+              .filter(Boolean) as Musica[];
+
+            setMusicas(listaOrdenada);
+          }
+        }
+      } catch (erro) {
+        console.error("Erro ao carregar dados:", erro);
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    carregarDados();
+  }, [repertorioId]);
+
+  const handleDragStart = (index: number) => {
+    dragItem.current = index;
+    setItemArrastado(index);
+  };
+
+  const handleDragEnter = (index: number) => {
+    dragOverItem.current = index;
+  };
+
+  const handleDragEnd = async () => {
+    if (
+      dragItem.current !== null &&
+      dragOverItem.current !== null &&
+      dragItem.current !== dragOverItem.current
+    ) {
+      const novalist = [...musicas];
+      const itemMovido = novalist.splice(dragItem.current, 1)[0];
+      novalist.splice(dragOverItem.current, 0, itemMovido);
+
+      setMusicas(novalist);
+
+      const novosIds = novalist.map((m) => m.id);
+      setSalvandoOrdem(true);
+      try {
+        await reordenarMusicasDoRepertorioAction(repertorioId, novosIds);
+      } catch (err) {
+        console.error("Erro ao salvar ordem:", err);
+      } finally {
+        setSalvandoOrdem(false);
+      }
+    }
+
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setItemArrastado(null);
+  };
+
+  const handleRemoverMusica = async (musicaId: string, titulo: string) => {
+    if (confirm(`Remover "${titulo}" deste repertório?`)) {
+      const novasList = musicas.filter((m) => m.id !== musicaId);
+      setMusicas(novasList);
+      await removerMusicaDoRepertorioAction(repertorioId, musicaId);
+    }
+  };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-slate-400">A carregar repertório...</p>
+      </main>
+    );
+  }
+
+  if (!repertorio) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
+        <p className="text-red-400">Repertório não encontrado.</p>
+        <Link href="/repertorios" className="text-amber-400 underline mt-4 block">
+          Voltar para Repertórios
+        </Link>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
+      <div>
+        {/* Cabeçalho */}
+        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <Link
+              href="/repertorios"
+              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition shrink-0"
+            >
+              <ArrowLeft size={20} />
+            </Link>
+            <div className="overflow-hidden">
+              <h1 className="text-lg font-bold text-amber-400 leading-tight truncate">
+                {repertorio.titulo}
+              </h1>
+            </div>
+          </div>
+
+          <Link
+            href={`/repertorios/${repertorio.id}/editar`}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition shrink-0"
+            title="Editar Repertório"
+          >
+            <Edit size={18} />
+          </Link>
+        </header>
+
+        {repertorio.descricao && (
+          <p className="text-xs text-slate-400 bg-slate-800/40 p-3 rounded-xl border border-slate-800 mb-4">
+            {repertorio.descricao}
+          </p>
+        )}
+
+        {/* Lista de Músicas com Arraste */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Músicas ({musicas.length})
+            </p>
+            {salvandoOrdem && (
+              <span className="text-[10px] text-amber-400 animate-pulse font-mono">
+                A guardar nova ordem...
+              </span>
+            )}
+          </div>
+
+          {musicas.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
+              <Music size={36} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhuma música neste repertório.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {musicas.map((m, index) => (
+                <div
+                  key={m.id}
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragEnter={() => handleDragEnter(index)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => e.preventDefault()}
+                  className={`bg-slate-800 p-3.5 rounded-xl border flex items-center justify-between gap-2 transition cursor-grab active:cursor-grabbing ${
+                    itemArrastado === index
+                      ? "border-amber-400 opacity-40 bg-slate-700/50"
+                      : "border-slate-700/60 hover:border-slate-600"
+                  }`}
+                >
+                  <div className="p-1 text-slate-500 hover:text-amber-400 shrink-0">
+                    <GripVertical size={18} />
+                  </div>
+
+                  <div className="flex-1 overflow-hidden pr-2">
+                    <Link
+                      href={`/musicas/${m.id}`}
+                      className="font-semibold text-slate-100 hover:text-amber-400 transition truncate block text-sm"
+                    >
+                      {index + 1}. {m.titulo}
+                    </Link>
+                    <p className="text-xs text-slate-400 truncate">{m.artista}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-bold px-2 py-0.5 rounded text-xs">
+                      {m.tomOriginal}
+                    </span>
+                    <button
+                      onClick={() => handleRemoverMusica(m.id, m.titulo)}
+                      className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
+                      title="Remover do Repertório"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                    <Link
+                      href={`/musicas/${m.id}`}
+                      className="p-1 text-slate-500 hover:text-slate-200 transition"
+                    >
+                      <ChevronRight size={18} />
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Botões de Ação Fixos */}
+      <div className="sticky bottom-4 pt-4 flex gap-2">
+        <Link
+          href={`/repertorios/${repertorio.id}/apresentacao`}
+          className={`flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg transition ${
+            musicas.length === 0 ? "opacity-50 pointer-events-none" : ""
+          }`}
+        >
+          <Play size={20} fill="currentColor" />
+          <span>Iniciar Show</span>
+        </Link>
+
+        <Link
+          href={`/repertorios/${repertorio.id}/selecionar-musicas`}
+          className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-3.5 rounded-xl flex items-center justify-center transition shrink-0"
+          title="Gerir / Adicionar Músicas"
+        >
+          <Plus size={20} />
+        </Link>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/repertorios/actions.ts">
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+const PROJECT_ID = "app-cifras-bcdce";
+
+export async function salvarOrdemRepertoriosAction(repertoriosOrdenados: { id: string }[]) {
+  try {
+    // Atualiza o campo 'ordem' no Firestore para cada repertório da lista
+    for (let i = 0; i < repertoriosOrdenados.length; i++) {
+      const rep = repertoriosOrdenados[i];
+      const urlPatch = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents/repertorios/${rep.id}?updateMask.fieldPaths=ordem`;
+
+      await fetch(urlPatch, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            ordem: { integerValue: i },
+          },
+        }),
+      });
+    }
+
+    revalidatePath("/repertorios");
+    return { sucesso: true };
+  } catch (erro: any) {
+    console.error("Erro ao guardar ordem dos repertórios:", erro);
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+</file>
+
+<file path="app/globals.css">
+@import "tailwindcss";
+
+body {
+  background-color: #0f172a;
+  color: #f8fafc;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+</file>
+
+<file path="components/AboutModal.tsx">
+"use client";
+
+import Image from "next/image";
+import { X } from "lucide-react";
+
+interface AboutModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+export default function AboutModal({ isOpen, onClose }: AboutModalProps) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-fade-in">
+      {/* Janela Estilo Software (Firefox / Desktop App Style) */}
+      <div className="relative w-full max-w-2xl bg-slate-900 border border-amber-500/30 rounded-2xl shadow-2xl overflow-hidden text-slate-100 flex flex-col">
+        
+        {/* Barra de Título da Janela (Estilo Sistema Operativo) */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/80 bg-slate-950/40">
+          <span className="text-xs font-semibold uppercase tracking-widest text-amber-400/90">
+            Sobre o CifraGo
+          </span>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Conteúdo Principal (Layout de Duas Colunas Inspirado no Firefox) */}
+        <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-center sm:items-start gap-6 sm:gap-8">
+          
+          {/* Coluna Esquerda: Logótipo Grande com Efeito Dourado */}
+          <div className="flex-shrink-0 flex flex-col items-center">
+            <div className="relative w-32 h-32 sm:w-36 sm:h-36 drop-shadow-[0_10px_25px_rgba(245,158,11,0.2)]">
+              <Image
+                src="/logo.png"
+                alt="Logo CifraGo"
+                fill
+                className="object-contain"
+                priority
+              />
+            </div>
+          </div>
+
+          {/* Coluna Direita: Informações, Versão e Créditos */}
+          <div className="flex-grow text-center sm:text-left space-y-4">
+            <div>
+              <h2 className="text-3xl font-extrabold tracking-tight text-slate-100">
+                CifraGo
+              </h2>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-1 text-xs text-amber-400/90 font-medium">
+                <span>Versão 1.0.0</span>
+                <span className="text-slate-600">•</span>
+                <button 
+                  onClick={() => alert("O CifraGo já está atualizado na versão mais recente!")} 
+                  className="hover:underline text-slate-300 hover:text-amber-300 transition"
+                >
+                  Verificar atualizações
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              O CifraGo é desenvolvido por <span className="text-amber-400 font-semibold">Gerson e Giordano</span>, unindo paixão pela música e tecnologia para manter os seus acordes e cifras organizados com elegância e alta performance.
+            </p>
+
+            <div className="pt-2 text-[11px] text-slate-400 space-y-1">
+              <p>Precisa de suporte ou quer colaborar?</p>
+              <div className="flex flex-wrap justify-center sm:justify-start gap-3 pt-1">
+                <a href="#ajuda" onClick={(e) => {e.preventDefault(); alert("Central de Ajuda CifraGo em breve.");}} className="text-amber-400 hover:underline">Ajuda</a>
+                <span>•</span>
+                <a href="#feedback" onClick={(e) => {e.preventDefault(); alert("Obrigado pelo interesse! Envie seu feedback para suporte@cifrago.com");}} className="text-amber-400 hover:underline">Enviar opinião</a>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Rodapé da Janela: Links Legais e Copyright (Exatamente igual ao do Firefox) */}
+        <div className="bg-slate-950/60 border-t border-slate-800/80 px-6 py-4 flex flex-col items-center gap-3">
+          <div className="flex flex-wrap justify-center gap-6 text-[11px] text-slate-400 font-medium">
+            <a href="#licenca" onClick={(e) => {e.preventDefault(); alert("Termos de licença de uso do software CifraGo.");}} className="hover:text-amber-400 hover:underline transition">
+              Informações de licenciamento
+            </a>
+            <a href="#termos" onClick={(e) => {e.preventDefault(); alert("Termos de uso aplicáveis.");}} className="hover:text-amber-400 hover:underline transition">
+              Termos de uso
+            </a>
+            <a href="#privacidade" onClick={(e) => {e.preventDefault(); alert("Política de privacidade e proteção de dados.");}} className="hover:text-amber-400 hover:underline transition">
+              Aviso de privacidade
+            </a>
+          </div>
+
+          <p className="text-[10px] text-slate-400 text-center">
+            CifraGo e seus logótipos são marcas registadas por <span className="text-slate-300">Gerson e Giordano</span>.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="components/BotaoInicio.tsx">
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Home } from "lucide-react";
+
+export default function BotaoInicio() {
+  const pathname = usePathname();
+
+  // Se estivermos na tela inicial ("/"), não exibe o botão
+  if (pathname === "/") {
+    return null;
+  }
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50">
+      <Link
+        href="/"
+        className="flex items-center justify-center w-12 h-12 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-full shadow-2xl transition transform hover:scale-105 active:scale-95 border-2 border-slate-900"
+        title="Voltar à Tela Inicial"
+      >
+        <Home size={22} />
+      </Link>
+    </div>
+  );
+}
+</file>
+
+<file path="lib/cifras.ts">
+// utils/cifras.ts
+
+export const NOTAS = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+export function transporNota(nota: string, semitones: number): string {
+  let n = nota.trim().toUpperCase();
+  if (n === "DB") n = "C#";
+  if (n === "EB") n = "D#";
+  if (n === "GB") n = "F#";
+  if (n === "AB") n = "G#";
+  if (n === "BB") n = "A#";
+
+  const idx = NOTAS.indexOf(n);
+  if (idx === -1) return nota;
+
+  let novoIdx = (idx + semitones) % 12;
+  if (novoIdx < 0) novoIdx += 12;
+  return NOTAS[novoIdx];
+}
+
+// Função matriz definitiva e robusta para transpor qualquer cifra (suporta F7M, Em7, Bm5+, G/B, etc.)
+export function transporCifra(texto: string, semitons: number): string {
+  if (semitons === 0 || !texto) return texto;
+
+  const linhas = texto.split("\n");
+
+  return linhas
+    .map((linha) => {
+      if (!linha.trim()) return linha;
+
+      // Mantém secções intactas (ex: [Pré-Refrão])
+      if (linha.trim().startsWith("[") && linha.trim().endsWith("]")) {
+        return linha;
+      }
+
+      const temEspacoDuplo = /\s{2,}/.test(linha);
+      const tokens = linha.trim().split(/\s+/);
+
+      // Regex abrangente para identificar com precisão qualquer formato de acorde
+      const regexAcorde = /^([A-G][b#]?)(m|maj|min|dim|aug|sus\d?|add\d?|\d+[+\-]?|\d*[M+]?\d*)?(?:\/([A-G][b#]?))?$/i;
+
+      const tokensAcordesValidos = tokens.filter(t => regexAcorde.test(t));
+      const pareceLinhaDeAcordes = temEspacoDuplo || (tokensAcordesValidos.length >= tokens.length * 0.6);
+
+      // Se a linha tem texto comum e NÃO tem características de cifra, protege a letra (e a letra "E")
+      if (!pareceLinhaDeAcordes && tokens.some(t => /^[a-zá-úãõç]{3,}$/i.test(t))) {
+        return linha;
+      }
+
+      return linha.replace(
+        /\b([A-G][#b]?)([a-zA-Z0-9\+\-\(\)]*)(?:\/([A-G][#b]?))?\b/g,
+        (match, notaBase, sufixo = "", baixo) => {
+          const notaUpper = notaBase.toUpperCase();
+          const notasValidas = ["C", "C#", "DB", "D", "D#", "EB", "E", "F", "F#", "GB", "G", "G#", "AB", "A", "A#", "BB", "B"];
+          
+          if (!notasValidas.includes(notaUpper)) {
+            return match;
+          }
+
+          // Proteção extra para a letra "E" solta no início de frases de texto comum
+          if (notaUpper === "E" && !sufixo && !baixo && !temEspacoDuplo && tokens.length === 1) {
+            return match;
+          }
+
+          const sufixoLower = sufixo.toLowerCase();
+          const eAcordeValido = 
+            sufixo === "" || 
+            ["m", "maj", "min", "dim", "aug", "sus", "add", "7", "5", "4", "6", "9", "11", "13", "7m", "7M", "+", "-"].some(s => sufixoLower.includes(s.toLowerCase()));
+
+          if (!eAcordeValido && sufixo !== "") {
+            return match;
+          }
+
+          const novaBase = transporNota(notaBase, semitons);
+          const novoBaixo = baixo ? "/" + transporNota(baixo, semitons) : "";
+          return `${novaBase}${sufixo}${novoBaixo}`;
+        }
+      );
+    })
+    .join("\n");
+}
+</file>
+
+<file path="lib/firebase-admin.ts">
+import { initializeApp, getApps, cert } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+
+if (!getApps().length) {
+  initializeApp({
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  });
+}
+
+export const adminDb = getFirestore();
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/manifest.json">
+{
+  "name": "CifraGo - Seus acordes, o seu ritmo",
+  "short_name": "CifraGo",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="AGENTS.md">
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->
+</file>
+
+<file path="CLAUDE.md">
+@AGENTS.md
+</file>
+
+<file path="eslint.config.mjs">
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+</file>
+
+<file path="package.json">
+{
+  "name": "app-cifras",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
+    "firebase": "^12.19.0",
+    "firebase-admin": "^14.4.0",
+    "lucide-react": "^1.47.0",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="postcss.config.mjs">
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="app/login/page.tsx">
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { 
+  signInWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import AboutModal from "@/components/AboutModal";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [erroMsg, setErroMsg] = useState("");
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErroMsg("");
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push("/");
+    } catch (error: any) {
+      console.error("Erro no login:", error);
+      if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+        setErroMsg("E-mail ou senha incorretos.");
+      } else if (error.code === "auth/invalid-email") {
+        setErroMsg("O formato do e-mail é inválido.");
+      } else {
+        setErroMsg("Ocorreu um erro ao entrar. Tente novamente.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    setErroMsg("");
+
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push("/");
+    } catch (error: any) {
+      console.error("Erro no login com Google:", error);
+      setErroMsg("Não foi possível autenticar com o Google. Tente novamente.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-md border border-amber-500/20 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
+        
+        {/* Cabeçalho com o Logótipo do CifraGo */}
+        <div className="flex flex-col items-center py-2 border-b border-slate-800/80 pb-6">
+          <div className="relative w-28 h-24 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
+            <Image
+              src="/logo.png"
+              alt="Logo CifraGo"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
+            Seus acordes, o seu ritmo
+          </p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
+            
+          </h1>
+        </div>
+
+        {/* Mensagem de Erro, caso exista */}
+        {erroMsg && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl text-center">
+            {erroMsg}
+          </div>
+        )}
+
+        {/* Botão Google */}
+        <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={googleLoading || loading}
+          className="w-full bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium py-3 rounded-xl transition flex items-center justify-center gap-3 text-sm shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {googleLoading ? (
+            <Loader2 size={18} className="animate-spin text-amber-400" />
+          ) : (
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path
+                fill="#EA4335"
+                d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.8 5 12 5z"
+              />
+              <path
+                fill="#4285F4"
+                d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.3 14.7c-.2-.7-.3-1.5-.3-2.3s.1-1.6.3-2.3L1.6 7.2C.6 9.2 0 11.5 0 13.9s.6 4.7 1.6 6.7l3.7-2.9c-.2-.7-.3-1.5-.3-2.3z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.2 0-5.8-2.1-6.7-5.1L1.6 16c1.9 3.8 5.8 7 10.4 7z"
+              />
+            </svg>
+          )}
+          <span>Continuar com o Google</span>
+        </button>
+
+        <div className="flex items-center my-4">
+          <div className="flex-grow border-t border-slate-800"></div>
+          <span className="px-3 text-xs text-slate-500 uppercase tracking-widest">ou e-mail</span>
+          <div className="flex-grow border-t border-slate-800"></div>
+        </div>
+
+        {/* Formulário Tradicional */}
+        <form onSubmit={handleLogin} className="space-y-4">
+          
+          {/* Campo E-mail */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              E-mail
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Mail size={16} />
+              </span>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nome@exemplo.com"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
+          </div>
+
+          {/* Campo Senha */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Senha
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Lock size={16} />
+              </span>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Botão Submeter */}
+          <button
+            type="submit"
+            disabled={loading || googleLoading}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>A entrar...</span>
+              </>
+            ) : (
+              <>
+                <span>Entrar</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Rodapé / Ir para o Cadastro e Sobre */}
+        <div className="text-center pt-2 border-t border-slate-800/80 space-y-3">
+          <p className="text-xs text-slate-400">
+            Ainda não tens uma conta?{" "}
+            <Link href="/login-cadastro" className="text-amber-400 font-semibold hover:underline">
+              Criar conta
+            </Link>
+          </p>
+
+          {/* Botão que abre a janela "Sobre" estilo Firefox */}
+          <div className="pt-2 border-t border-slate-800/50 flex justify-center">
+            <button 
+              type="button"
+              onClick={() => setIsAboutOpen(true)}
+              className="text-[11px] uppercase tracking-widest text-slate-400 hover:text-amber-400 font-medium transition"
+            >
+              Sobre o CifraGo
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Modal Sobre Atribuído */}
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
+    </main>
+  );
+}
+</file>
+
+<file path="app/musicas/[id]/page.tsx">
+"use client";
+
+import { useState, useEffect, use, useRef } from "react";
+import Link from "next/link";
+import { ArrowLeft, Edit, Plus, Minus, Music, RotateCcw, Play, Pause, Type, Maximize2, Minimize2 } from "lucide-react";
+import { buscarMusicaPorIdAction } from "./actions";
+
+// Importa as funções da matriz centralizada
+import { transporCifra, transporNota } from "@/lib/cifras";
+
+interface Musica {
+  id: string;
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+  cifra: string;
+}
+
+export default function VerMusicaPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: musicaId } = use(params);
+
+  const [musica, setMusica] = useState<Musica | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erroMsg, setErroMsg] = useState("");
+
+  const [semitonos, setSemitonos] = useState(0);
+  const [tamanhoFonte, setTamanhoFonte] = useState(15);
+  const [fullScreen, setFullScreen] = useState(false);
+
+  // Estados para o Auto-scroll (Play)
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [scrollSpeed, setScrollSpeed] = useState(0.030);
+  const scrollRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    async function carregar() {
+      setCarregando(true);
+      setErroMsg("");
+      const res = await buscarMusicaPorIdAction(musicaId);
+      if (res.sucesso && res.musica) {
+        setMusica(res.musica);
+      } else {
+        setErroMsg(res.erro || "Erro ao carregar música.");
+      }
+      setCarregando(false);
+    }
+
+    carregar();
+  }, [musicaId]);
+
+  // Lógica do Auto-scroll
+  useEffect(() => {
+    if (!isScrolling) {
+      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
+      return;
+    }
+
+    let lastTime = performance.now();
+    let accumulatedPixels = 0;
+
+    const step = (currentTime: number) => {
+      const delta = currentTime - lastTime;
+      lastTime = currentTime;
+      accumulatedPixels += scrollSpeed * delta;
+
+      if (accumulatedPixels >= 1) {
+        const pixelsToScroll = Math.floor(accumulatedPixels);
+        window.scrollBy({ top: pixelsToScroll, behavior: "auto" });
+        accumulatedPixels -= pixelsToScroll;
+      }
+
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 2) {
+        setIsScrolling(false);
+        return;
+      }
+      scrollRef.current = requestAnimationFrame(step);
+    };
+
+    scrollRef.current = requestAnimationFrame(step);
+    return () => {
+      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
+    };
+  }, [isScrolling, scrollSpeed]);
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setFullScreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setFullScreen(false);
+      }
+    }
+  };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-amber-400 font-medium animate-pulse">A carregar música...</p>
+      </main>
+    );
+  }
+
+  if (erroMsg || !musica) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col items-center justify-center gap-4">
+        <p className="text-red-400">{erroMsg || "Música não encontrada."}</p>
+        <Link href="/musicas" className="text-amber-400 underline">
+          Voltar para Músicas
+        </Link>
+      </main>
+    );
+  }
+
+  const tomAtual = transporNota(musica.tomOriginal || "C", semitonos);
+  const textoParaExibir = transporCifra(musica.cifra, semitonos);
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 pb-52 pt-16">
+      {/* Barra Superior Fixa */}
+      <header className="fixed top-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-40 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <Link
+            href="/musicas"
+            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 shrink-0"
+            title="Voltar para Músicas"
+          >
+            <ArrowLeft size={18} />
+          </Link>
+          <div className="overflow-hidden">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block leading-tight">
+              Música Individual
+            </span>
+            <h1 className="text-sm font-bold text-slate-100 truncate leading-tight">
+              {musica.titulo}
+            </h1>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={toggleFullScreen}
+            className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800/80 rounded-lg transition"
+            title={fullScreen ? "Minimizar ecrã" : "Ecrã inteiro"}
+          >
+            {fullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+          
+          <Link
+            href={`/musicas/${musica.id}/editar`}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg transition flex items-center gap-1 text-xs font-semibold"
+          >
+            <Edit size={16} />
+            <span>Editar</span>
+          </Link>
+        </div>
+      </header>
+
+      {/* Conteúdo Principal */}
+      <div className="max-w-2xl mx-auto px-4 mt-2">
+        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 mb-4 gap-2">
+          <div className="overflow-hidden">
+            <h2 className="text-xl font-bold text-amber-400 truncate">
+              {musica.titulo}
+            </h2>
+            <p className="text-sm text-slate-400 truncate">{musica.artista}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 shadow-inner">
+          {textoParaExibir ? (
+            <pre
+              style={{ fontSize: `${tamanhoFonte}px` }}
+              className="font-mono leading-relaxed whitespace-pre-wrap break-words text-slate-200 font-medium transition-all duration-150"
+            >
+              {textoParaExibir}
+            </pre>
+          ) : (
+            <div className="text-center py-12 text-slate-500">
+              <Music size={32} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhuma cifra/letra cadastrada para esta música.</p>
+              <Link
+                href={`/musicas/${musica.id}/editar`}
+                className="mt-3 text-xs text-amber-400 font-semibold underline block"
+              >
+                + Adicionar Cifra
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Controlos Inferiores Fixos */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2">
+        
+        {/* Barra Dividida em Duas Metades: Esquerda (Tom) e Direita (Tamanho da Fonte) */}
+        <div className="max-w-2xl mx-auto grid grid-cols-2 gap-2">
+          
+          {/* Metade Esquerda: Controlo de Tom */}
+          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Tom:</span>
+              <span className="text-xs font-black text-amber-400 font-mono px-1.5 py-0.5 bg-slate-900 rounded border border-slate-800 text-center shrink-0">
+                {tomAtual}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => setSemitonos((prev) => prev - 1)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Baixar Tom"
+              >
+                <Minus size={14} />
+              </button>
+
+              <button
+                onClick={() => setSemitonos(0)}
+                disabled={semitonos === 0}
+                className={`p-1.5 rounded-lg transition active:scale-95 ${
+                  semitonos === 0
+                    ? "bg-slate-900/50 text-slate-600 cursor-not-allowed"
+                    : "bg-slate-800 text-amber-400 hover:bg-slate-700"
+                }`}
+                title="Voltar ao tom original"
+              >
+                <RotateCcw size={14} />
+              </button>
+
+              <button
+                onClick={() => setSemitonos((prev) => prev + 1)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Subir Tom"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Metade Direita: Controlo de Tamanho de Fonte */}
+          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <Type size={14} className="text-slate-400 shrink-0" />
+              <span className="text-xs font-mono font-bold text-amber-400 shrink-0">{tamanhoFonte}px</span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => setTamanhoFonte((prev) => Math.max(10, prev - 1))}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Diminuir Fonte"
+              >
+                <Minus size={14} />
+              </button>
+              <button
+                onClick={() => setTamanhoFonte((prev) => Math.min(32, prev + 1))}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Aumentar Fonte"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Controlo de Auto-scroll com Slider (Play) */}
+        <div className="max-w-2xl mx-auto bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => setIsScrolling(!isScrolling)}
+              className={`py-2 px-4 rounded-xl font-bold flex items-center justify-center gap-2 text-xs transition shrink-0 ${
+                isScrolling
+                  ? "bg-amber-500 text-slate-950 shadow-md animate-pulse"
+                  : "bg-slate-800 text-amber-400 hover:bg-slate-700"
+              }`}
+            >
+              {isScrolling ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+              <span>{isScrolling ? "A rolar" : "Play"}</span>
+            </button>
+
+            <div className="flex-1 flex flex-col justify-center px-1">
+              <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <span>Lento</span>
+                <span className="text-amber-400 font-mono">Velocidade</span>
+                <span>Rápido</span>
+              </div>
+              <input
+                type="range"
+                min="0.003"
+                max="0.25"
+                step="0.002"
+                value={scrollSpeed}
+                onChange={(e) => setScrollSpeed(parseFloat(e.target.value))}
+                className="w-full accent-amber-400 bg-slate-800 h-2 rounded-lg cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
+      </footer>
+    </main>
+  );
+}
+</file>
+
+<file path="app/musicas/nova/actions.ts">
+"use server";
+
+export async function criarMusicaAction(data: {
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+  cifra: string;
+  userId: string; // <--- 1. Receber o userId
+}) {
+  const projectId = "app-cifras-bcdce";
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`;
+
+  const bodyData = {
+    fields: {
+      titulo: { stringValue: data.titulo },
+      artista: { stringValue: data.artista },
+      tomOriginal: { stringValue: data.tomOriginal },
+      tomAtual: { stringValue: data.tomOriginal },
+      cifra: { stringValue: data.cifra },
+      userId: { stringValue: data.userId || "" }, // <--- 2. Gravar o userId no Firestore
+      criado_em: { timestampValue: new Date().toISOString() },
+    },
+  };
+
+  try {
+    const resposta = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resposta.ok) {
+      const erroJson = await resposta.json();
+      console.error("Erro na REST API do Firestore:", erroJson);
+      return {
+        sucesso: false,
+        erro: erroJson.error?.message || "Erro ao salvar no Firestore.",
+      };
+    }
+
+    return { sucesso: true };
+  } catch (erro: any) {
+    console.error("Erro de conexão na Server Action:", erro);
+    return { sucesso: false, erro: erro?.message || "Erro de rede ao salvar." };
+  }
+}
+</file>
+
+<file path="app/repertorios/[id]/editar/page.tsx">
+"use client";
+
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Save } from "lucide-react";
+import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
+
+export default function EditarRepertorioPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: repertorioId } = use(params);
+  const router = useRouter();
+
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    async function carregarRepertorio() {
+      try {
+        const repertorio: any = await serviceGetRepertorioPorId(repertorioId);
+        if (repertorio) {
+          setTitulo(repertorio.titulo || "");
+          setDescricao(repertorio.descricao || "");
+        }
+      } catch (erro) {
+        console.error("Erro ao carregar repertório:", erro);
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    carregarRepertorio();
+  }, [repertorioId]);
+
+  const handleSalvar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo.trim()) return;
+
+    try {
+      setSalvando(true);
+      await serviceAtualizarRepertorio(repertorioId, { titulo, descricao });
+      router.push("/repertorios");
+    } catch (erro: any) {
+      console.error("Erro ao atualizar repertório:", erro);
+      alert(erro.message || "Erro ao atualizar repertório.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-slate-400">A carregar repertório...</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
+      <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
+        <Link
+          href="/repertorios"
+          className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+        >
+          <ArrowLeft size={20} />
+        </Link>
+        <h1 className="text-xl font-bold text-amber-400">Editar Repertório</h1>
+      </header>
+
+      <form onSubmit={handleSalvar} className="space-y-4">
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">
+            Título do Repertório *
+          </label>
+          <input
+            type="text"
+            required
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">
+            Descrição (Opcional)
+          </label>
+          <textarea
+            rows={3}
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 resize-none"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={salvando}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl transition flex items-center justify-center gap-2 mt-6 shadow-lg"
+        >
+          <Save size={18} />
+          {salvando ? "A guardar..." : "Salvar Alterações"}
+        </button>
+      </form>
+    </main>
+  );
+}
+</file>
+
+<file path="app/repertorios/novo/actions.ts">
+"use server";
+
+export async function criarRepertorioAction(data: {
+  titulo: string;
+  descricao?: string;
+  userId: string;
+}) {
+  const projectId = "app-cifras-bcdce";
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios`;
+
+  const bodyData = {
+    fields: {
+      titulo: { stringValue: data.titulo },
+      descricao: { stringValue: data.descricao || "" },
+      userId: { stringValue: data.userId },
+      musicasIds: { arrayValue: { values: [] } },
+      ordem: { integerValue: Date.now() },
+      criado_em: { timestampValue: new Date().toISOString() },
+    },
+  };
+
+  try {
+    const resposta = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resposta.ok) {
+      const erroJson = await resposta.json();
+      console.error("Erro na REST API do Firestore (Repertórios):", erroJson);
+      return {
+        sucesso: false,
+        erro: erroJson.error?.message || "Erro ao salvar o repertório no Firestore.",
+      };
+    }
+
+    return { sucesso: true };
+  } catch (erro: any) {
+    console.error("Erro de conexão na Server Action:", erro);
+    return { sucesso: false, erro: erro?.message || "Erro de rede ao salvar repertório." };
+  }
+}
+</file>
+
+<file path="app/repertorios/novo/page.tsx">
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Save } from "lucide-react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { criarRepertorioAction } from "./actions";
+
+export default function NovoRepertorioPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [titulo, setTitulo] = useState("");
+  const [descricao, setDescricao] = useState("");
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+      }
+    });
+    return () => unsubscribe();
+  }, [router]);
+
+  const handleSalvar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo.trim() || !user) return;
+
+    try {
+      setSalvando(true);
+      const resultado = await criarRepertorioAction({
+        titulo,
+        descricao,
+        userId: user.uid,
+      });
+
+      if (resultado.sucesso) {
+        router.push("/repertorios");
+      } else {
+        alert(resultado.erro || "Erro ao criar repertório.");
+      }
+    } catch (erro) {
+      console.error("Erro ao criar repertório:", erro);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
+      <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
+        <Link
+          href="/repertorios"
+          className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+        >
+          <ArrowLeft size={20} />
+        </Link>
+        <h1 className="text-xl font-bold text-amber-400">Novo Repertório</h1>
+      </header>
+
+      <form onSubmit={handleSalvar} className="space-y-4">
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">
+            Título do Repertório *
+          </label>
+          <input
+            type="text"
+            required
+            placeholder="Ex: Culto de Domingo, Ensaio..."
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">
+            Descrição (Opcional)
+          </label>
+          <textarea
+            rows={3}
+            placeholder="Observações adicionais..."
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 resize-none"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={salvando}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl transition flex items-center justify-center gap-2 mt-6 shadow-lg"
+        >
+          <Save size={18} />
+          {salvando ? "A guardar..." : "Guardar Repertório"}
+        </button>
+      </form>
+    </main>
+  );
+}
+</file>
+
+<file path="app/page.tsx">
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { Music, FolderKanban, LogOut, Loader2 } from "lucide-react";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+
+export default function HomePage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+      }
+      setLoadingAuth(false);
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push("/login");
+  };
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-400">
+        <Loader2 size={32} className="animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
+      <div>
+        {/* Barra superior com Utilizador e Sair */}
+        <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-900 text-xs text-slate-400">
+          <span className="truncate max-w-[220px]">{user?.email}</span>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1 text-slate-400 hover:text-red-400 transition"
+            title="Terminar Sessão"
+          >
+            <LogOut size={14} />
+            <span>Sair</span>
+          </button>
+        </div>
+
+        {/* Cabeçalho com Logo CifraGo Centralizada */}
+        <header className="flex flex-col items-center py-4 border-b border-slate-800/80 mb-6">
+          <div className="relative w-32 h-28 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
+            <Image
+              src="/logo.png"
+              alt="Logo CifraGo"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+
+          <p className="text-center text-xs text-amber-400/90 font-medium tracking-wide italic">
+            Seus acordes, o seu ritmo
+          </p>
+        </header>
+
+        {/* Navegação Principal */}
+        <nav className="space-y-4">
+          <Link
+            href="/musicas"
+            className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-amber-500/20 hover:border-amber-400/60 hover:bg-slate-900 transition group shadow-lg"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-slate-950 transition shadow-sm">
+                <Music size={24} />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-slate-100 group-hover:text-amber-400 transition">
+                  Músicas
+                </h2>
+                <p className="text-xs text-slate-400">Ver e gerir catálogo de cifras</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/repertorios"
+            className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-amber-500/20 hover:border-amber-400/60 hover:bg-slate-900 transition group shadow-lg"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-slate-950 transition shadow-sm">
+                <FolderKanban size={24} />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-slate-100 group-hover:text-amber-400 transition">
+                  Repertórios
+                </h2>
+                <p className="text-xs text-slate-400">Listas para ensaios e apresentações</p>
+              </div>
+            </div>
+          </Link>
+        </nav>
+      </div>
+
+      <footer className="text-center py-4 text-[11px] text-slate-500">
+        CifraGo App &bull; <span className="text-amber-500/70">Seus acordes, o seu ritmo</span>
+      </footer>
+    </main>
+  );
+}
+</file>
+
+<file path="lib/auth.ts">
+import { User } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+// Email definido temporariamente como Administrador Principal
+const ADMIN_EMAIL = "giordano.machado@gmail.com";
+
+export type UserRole = 'admin' | 'viewer' | 'private';
+
+export interface UserPermissions {
+  canManageSettings: boolean;      // Acesso a configurações e painel de admin
+  canViewGlobalLibrary: boolean;   // Vê todas as músicas/repertórios de todos
+  canModifyContent: boolean;       // Pode criar, editar ou excluir registos
+}
+
+/**
+ * Retorna as permissões com base no papel (role) do utilizador.
+ */
+export function getPermissions(role: UserRole): UserPermissions {
+  switch (role) {
+    case 'admin':
+      return {
+        canManageSettings: true,
+        canViewGlobalLibrary: true,
+        canModifyContent: true,
+      };
+      
+    case 'viewer':
+      return {
+        canManageSettings: false,
+        canViewGlobalLibrary: true,  // Vê toda a biblioteca
+        canModifyContent: false,     // Sem permissão para incluir/excluir
+      };
+      
+    case 'private':
+    default:
+      return {
+        canManageSettings: false,
+        canViewGlobalLibrary: false, // Vê apenas os seus próprios dados
+        canModifyContent: true,      // Gere o seu próprio conteúdo
+      };
+  }
+}
+
+/**
+ * Verifica se o utilizador autenticado é administrador (mantém a compatibilidade com o teu código atual).
+ */
+export function isAdmin(user: User | null): boolean {
+  if (!user || !user.email) return false;
+  return user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+}
+
+/**
+ * Busca o papel (role) do utilizador no Firestore. 
+ * Se for o teu email principal, assume sempre 'admin' por segurança.
+ */
+export async function getUserRole(user: User | null): Promise<UserRole> {
+  if (!user || !user.email) return 'private';
+
+  if (user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    return 'admin';
+  }
+
+  try {
+    const userDocRef = doc(db, "users", user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      const data = userDoc.data();
+      return (data.role as UserRole) || 'private';
+    }
+  } catch (error) {
+    console.error("Erro ao buscar o papel do utilizador:", error);
+  }
+
+  return 'private'; // Por defeito, novos utilizadores são private
+}
+</file>
+
+<file path="lib/firebase-functions.ts">
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  deleteDoc, 
+  doc, 
+  getDoc,
+  updateDoc 
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { getUserRole, getPermissions } from "@/lib/auth";
+
+/**
+ * ==========================================
+ * MÚSICAS
+ * ==========================================
+ */
+
+/**
+ * Retorna as músicas com base automática nas permissões do utilizador logado.
+ */
+export async function serviceGetMusicas() {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return [];
+
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
+
+  const musicasRef = collection(db, "musicas");
+  let q;
+
+  if (permissions.canViewGlobalLibrary) {
+    q = query(musicasRef);
+  } else {
+    q = query(musicasRef, where("userId", "==", currentUser.uid));
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+}
+
+/**
+ * Apaga uma música garantindo que respeita as regras de permissão.
+ */
+export async function serviceDeletarMusica(idMusica: string, donoIdMusica: string) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Utilizador não autenticado.");
+
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
+
+  if (!permissions.canModifyContent) {
+    throw new Error("Não tens permissão para excluir conteúdos.");
+  }
+
+  if (!permissions.canViewGlobalLibrary && currentUser.uid !== donoIdMusica) {
+    throw new Error("Só podes apagar registos criados por ti.");
+  }
+
+  await deleteDoc(doc(db, "musicas", idMusica));
+}
+
+/**
+ * ==========================================
+ * REPERTÓRIOS
+ * ==========================================
+ */
+
+/**
+ * Retorna os repertórios com base automática nas permissões do utilizador logado.
+ */
+export async function serviceGetRepertorios() {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return [];
+
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
+
+  const repertoriosRef = collection(db, "repertorios");
+  let q;
+
+  if (permissions.canViewGlobalLibrary) {
+    q = query(repertoriosRef);
+  } else {
+    q = query(repertoriosRef, where("userId", "==", currentUser.uid));
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+}
+
+/**
+ * Apaga um repertório garantindo que respeita as regras de permissão.
+ */
+export async function serviceDeletarRepertorio(idRepertorio: string, donoIdRepertorio: string) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Utilizador não autenticado.");
+
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
+
+  if (!permissions.canModifyContent) {
+    throw new Error("Não tens permissão para excluir conteúdos.");
+  }
+
+  if (!permissions.canViewGlobalLibrary && currentUser.uid !== donoIdRepertorio) {
+    throw new Error("Só podes apagar registos criados por ti.");
+  }
+
+  await deleteDoc(doc(db, "repertorios", idRepertorio));
+}
+
+/**
+ * Retorna os dados de um repertório específico pelo ID.
+ */
+export async function serviceGetRepertorioPorId(idRepertorio: string) {
+  const docRef = doc(db, "repertorios", idRepertorio);
+  const docSnap = await getDoc(docRef);
+  if (!docSnap.exists()) return null;
+  return { id: docSnap.id, ...docSnap.data() };
+}
+
+/**
+ * Atualiza os dados de um repertório (título, descrição e/ou músicas).
+ */
+export async function serviceAtualizarRepertorio(
+  idRepertorio: string, 
+  dados: { titulo?: string; descricao?: string; musicasIds?: string[] }
+) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Utilizador não autenticado.");
+
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
+
+  if (!permissions.canModifyContent) {
+    throw new Error("Não tens permissão para editar conteúdos.");
+  }
+
+  const docRef = doc(db, "repertorios", idRepertorio);
+  
+  const dadosAtualizacao: any = {};
+  if (dados.titulo !== undefined) dadosAtualizacao.titulo = dados.titulo;
+  if (dados.descricao !== undefined) dadosAtualizacao.descricao = dados.descricao;
+  if (dados.musicasIds !== undefined) dadosAtualizacao.musicasIds = dados.musicasIds;
+
+  await updateDoc(docRef, dadosAtualizacao);
+}
+
+/**
+ * Retorna todas as músicas (global ou filtrada por utilizador, conforme permissão).
+ */
+export async function serviceGetTodasMusicas() {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return [];
+
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
+
+  const musicasRef = collection(db, "musicas");
+  let q;
+
+  if (permissions.canViewGlobalLibrary) {
+    q = query(musicasRef);
+  } else {
+    q = query(musicasRef, where("userId", "==", currentUser.uid));
+  }
+
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }));
+}
+</file>
+
+<file path="lib/firebase.ts">
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth } from "firebase/auth"; // <-- Adicionado
+import { initializeFirestore, memoryLocalCache } from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
+
+const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+
+// Exporta o Auth para usar no Login
+export const auth = getAuth(app); // <-- Adicionado
+
+// Desativa conexões de stream/webchannel e força o transporte por requisições HTTP Fetch puras
+export const db = initializeFirestore(app, {
+  experimentalAutoDetectLongPolling: false,
+  experimentalForceLongPolling: true,
+  localCache: memoryLocalCache(),
+});
+</file>
+
+<file path="app/musicas/nova/page.tsx">
+"use client";
+
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { criarMusicaAction } from "./actions";
+import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
+import Link from "next/link";
+import { auth } from "@/lib/firebase";
+
+export default function NovaMusicaPage() {
+  const router = useRouter();
+  const [titulo, setTitulo] = useState("");
+  const [artista, setArtista] = useState("");
+  const [tomOriginal, setTomOriginal] = useState("C");
+  const [cifra, setCifra] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  const [mensagemErro, setMensagemErro] = useState("");
+  const [emTelaCheia, setEmTelaCheia] = useState(false);
+  
+  const containerCifraRef = useRef<HTMLDivElement>(null);
+
+  const alternarTelaCheia = () => {
+    if (!document.fullscreenElement && containerCifraRef.current) {
+      containerCifraRef.current.requestFullscreen().catch((err) => {
+        console.error("Erro ao tentar entrar em tela cheia:", err);
+      });
+      setEmTelaCheia(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+      setEmTelaCheia(false);
+    }
+  };
+
+  const salvarMusica = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Evita múltiplos cliques se já estiver a carregar
+    if (carregando) return;
+    
+    setMensagemErro("");
+
+    // Validação 1: Título obrigatório
+    if (!titulo.trim()) {
+      alert("Digite o título da música!");
+      return;
+    }
+
+    // Validação 2: Alerta se a cifra estiver vazia (Ideia 2)
+    if (!cifra.trim()) {
+      const confirmar = window.confirm(
+        "Atenção: O campo de cifra/letra está vazio. Deseja realmente guardar a música sem conteúdo?"
+      );
+      if (!confirmar) return; // Cancela a submissão se o utilizador desistir
+    }
+
+    try {
+      setCarregando(true); // Bloqueia imediatamente o botão
+
+      const user = auth.currentUser;
+
+      const resultado = await criarMusicaAction({
+        titulo,
+        artista,
+        tomOriginal,
+        cifra,
+        userId: user ? user.uid : "",
+      });
+
+      if (resultado.sucesso) {
+        router.push("/musicas");
+        router.refresh();
+      } else {
+        setMensagemErro(resultado.erro || "Ocorreu um erro ao salvar.");
+        setCarregando(false); // Liberta o botão apenas se houver erro
+      }
+    } catch (erro: any) {
+      setMensagemErro("Erro ao enviar dados para o servidor.");
+      setCarregando(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
+      <header className="flex items-center gap-3 mb-6 pt-2 border-b border-slate-800 pb-4">
+        <Link
+          href="/musicas"
+          className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+        >
+          <ArrowLeft size={20} />
+        </Link>
+        <h1 className="text-xl font-bold text-amber-400">Nova Música</h1>
+      </header>
+
+      {mensagemErro && (
+        <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-200 text-sm">
+          <strong>Erro:</strong> {mensagemErro}
+        </div>
+      )}
+
+      <form onSubmit={salvarMusica} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">
+            Título da Música *
+          </label>
+          <input
+            type="text"
+            required
+            placeholder="Ex: Porque Ele Vive"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">
+            Artista / Cantor
+          </label>
+          <input
+            type="text"
+            placeholder="Ex: Harpa Cristã"
+            value={artista}
+            onChange={(e) => setArtista(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">
+            Tom Original
+          </label>
+          <select
+            value={tomOriginal}
+            onChange={(e) => setTomOriginal(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 focus:outline-none focus:border-amber-400"
+          >
+            {["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"].map(
+              (nota) => (
+                <option key={nota} value={nota}>
+                  {nota}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        {/* Bloco da Cifra com suporte a expansão / ecrã cheio */}
+        <div ref={containerCifraRef} className={`${emTelaCheia ? 'bg-slate-900 p-4 h-screen flex flex-col' : ''}`}>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-slate-300">
+              Cifra / Letra
+            </label>
+            <button
+              type="button"
+              onClick={alternarTelaCheia}
+              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition"
+              title="Expandir campo de texto"
+            >
+              {emTelaCheia ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              <span>{emTelaCheia ? "Normal" : "Expandir"}</span>
+            </button>
+          </div>
+          <textarea
+            rows={12}
+            placeholder="Cole aqui a cifra ou letra da música..."
+            value={cifra}
+            onChange={(e) => setCifra(e.target.value)}
+            className={`w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:border-amber-400 ${
+              emTelaCheia ? "flex-1 h-[80vh]" : ""
+            }`}
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={carregando}
+          className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-700 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 transition shadow-lg"
+        >
+          <Save size={20} />
+          {carregando ? "A salvar..." : "Salvar Música"}
+        </button>
+      </form>
+    </main>
+  );
+}
+</file>
+
+<file path="app/repertorios/[id]/selecionar-musicas/page.tsx">
+"use client";
+
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Save, Check, Music } from "lucide-react";
+import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
+
+interface Musica {
+  id: string;
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+}
+
+export default function SelecionarMusicasPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: repertorioId } = use(params);
+  const router = useRouter();
+
+  const [musicasDisponiveis, setMusicasDisponiveis] = useState<Musica[]>([]);
+  const [musicasSelecionadasIds, setMusicasSelecionadasIds] = useState<string[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+
+  const projectId = "app-cifras-bcdce";
+
+  useEffect(() => {
+    async function carregarDados() {
+      try {
+        setCarregando(true);
+
+        // 1. Carregar o repertório atual para saber quais músicas já estão selecionadas
+        const repertorio: any = await serviceGetRepertorioPorId(repertorioId);
+        if (repertorio && repertorio.musicasIds) {
+          setMusicasSelecionadasIds(repertorio.musicasIds);
+        }
+
+        // 2. Carregar todas as músicas cadastradas
+        const resMusicas = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
+          { cache: "no-store" }
+        );
+
+        if (resMusicas.ok) {
+          const dadosMusicas = await resMusicas.json();
+          if (dadosMusicas.documents) {
+            const lista: Musica[] = dadosMusicas.documents.map((doc: any) => {
+              const id = doc.name.split("/").pop();
+              const f = doc.fields || {};
+              return {
+                id,
+                titulo: f.titulo?.stringValue || "Sem título",
+                artista: f.artista?.stringValue || "Artista desconhecido",
+                tomOriginal: f.tomOriginal?.stringValue || "C",
+              };
+            });
+            setMusicasDisponiveis(lista);
+          }
+        }
+      } catch (erro) {
+        console.error("Erro ao carregar dados:", erro);
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    carregarDados();
+  }, [repertorioId]);
+
+  const toggleMusica = (musicaId: string) => {
+    if (musicasSelecionadasIds.includes(musicaId)) {
+      setMusicasSelecionadasIds(musicasSelecionadasIds.filter((id) => id !== musicaId));
+    } else {
+      setMusicasSelecionadasIds([...musicasSelecionadasIds, musicaId]);
+    }
+  };
+
+  const handleSalvar = async () => {
+    try {
+      setSalvando(true);
+      await serviceAtualizarRepertorio(repertorioId, {
+        musicasIds: musicasSelecionadasIds,
+      });
+      router.push(`/repertorios/${repertorioId}`);
+    } catch (erro: any) {
+      console.error("Erro ao atualizar músicas do repertório:", erro);
+      alert(erro.message || "Erro ao salvar músicas.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-slate-400">A carregar músicas...</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
+      <div>
+        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/repertorios/${repertorioId}`}
+              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+            >
+              <ArrowLeft size={20} />
+            </Link>
+            <h1 className="text-lg font-bold text-amber-400">Gerir Músicas</h1>
+          </div>
+          <span className="text-xs text-slate-400">
+            {musicasSelecionadasIds.length} selecionadas
+          </span>
+        </header>
+
+        <p className="text-xs text-slate-400 mb-4">
+          Selecione as músicas que deseja incluir neste repertório:
+        </p>
+
+        {musicasDisponiveis.length === 0 ? (
+          <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
+            <Music size={36} className="mx-auto mb-2 opacity-40" />
+            <p className="text-sm">Nenhuma música cadastrada no sistema.</p>
+          </div>
+        ) : (
+          <div className="space-y-2 pb-20">
+            {musicasDisponiveis.map((m) => {
+              const selecionada = musicasSelecionadasIds.includes(m.id);
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => toggleMusica(m.id)}
+                  className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition ${
+                    selecionada
+                      ? "bg-amber-500/10 border-amber-400/50 text-slate-100"
+                      : "bg-slate-800/60 border-slate-700/60 text-slate-300 hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex-1 overflow-hidden">
+                    <p className="font-semibold text-sm truncate">{m.titulo}</p>
+                    <p className="text-xs text-slate-400 truncate">{m.artista}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="bg-slate-800 text-amber-400 font-bold px-2 py-0.5 rounded text-xs border border-slate-700">
+                      {m.tomOriginal}
+                    </span>
+                    <div
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition ${
+                        selecionada
+                          ? "bg-amber-500 text-slate-950"
+                          : "border border-slate-600 bg-slate-800"
+                      }`}
+                    >
+                      {selecionada && <Check size={14} strokeWidth={3} />}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="sticky bottom-4 pt-4 bg-slate-900/80 backdrop-blur">
+        <button
+          onClick={handleSalvar}
+          disabled={salvando}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg"
+        >
+          <Save size={18} />
+          {salvando ? "A guardar..." : "Salvar Seleção"}
+        </button>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/layout.tsx">
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import BotaoInicio from "@/components/BotaoInicio"; // Importa o botão flutuante
+
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+export const metadata: Metadata = {
+  title: "CifraGo",
+  description: "Seus acordes, o seu ritmo",
+  manifest: "/manifest.json", // <-- Adicionado
+  icons: {                   // <-- Adicionado
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html
+      lang="pt"
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col bg-slate-950 text-slate-100">
+        {children}
+        <BotaoInicio /> {/* Botão global disponível em todas as telas, exceto na Home */}
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="app/musicas/page.tsx">
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search, Loader2 } from "lucide-react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { getUserRole, getPermissions, UserPermissions } from "@/lib/auth";
+import { serviceGetMusicas, serviceDeletarMusica } from "@/lib/firebase-functions";
+import { salvarOrdemMusicasAction } from "./actions";
+
+interface Musica {
+  id: string;
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+  ordem?: number;
+  userId: string;
+}
+
+export default function MusicasPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [musicas, setMusicas] = useState<Musica[]>([]);
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+  const [termoBusca, setTermoBusca] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [itemArrastado, setItemArrastado] = useState<number | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+        
+        // 1. Descobre as permissões do utilizador logado
+        const role = await getUserRole(currentUser);
+        const userPerms = getPermissions(role);
+        setPermissions(userPerms);
+
+        // 2. Carrega as músicas utilizando a função centralizada
+        await carregarMusicas();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  const carregarMusicas = async () => {
+    try {
+      setCarregando(true);
+      const lista = await serviceGetMusicas();
+      
+      const musicasFormatadas: Musica[] = lista.map((item: any) => ({
+        id: item.id,
+        titulo: item.titulo || "Sem título",
+        artista: item.artista || "Artista desconhecido",
+        tomOriginal: item.tomOriginal || "C",
+        ordem: item.ordem ?? 0,
+        userId: item.userId,
+      }));
+
+      musicasFormatadas.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      setMusicas(musicasFormatadas);
+    } catch (erro) {
+      console.error("Erro ao carregar músicas:", erro);
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  // Lógica de Arrastar e Reordenar
+  const handleDragStart = (index: number) => {
+    dragItem.current = index;
+    setItemArrastado(index);
+  };
+
+  const handleDragEnter = (index: number) => {
+    dragOverItem.current = index;
+  };
+
+  const handleDragEnd = async () => {
+    if (
+      dragItem.current !== null &&
+      dragOverItem.current !== null &&
+      dragItem.current !== dragOverItem.current
+    ) {
+      const novaLista = [...musicas];
+      const itemMovido = novaLista.splice(dragItem.current, 1)[0];
+      novaLista.splice(dragOverItem.current, 0, itemMovido);
+
+      setMusicas(novaLista);
+
+      setSalvandoOrdem(true);
+      await salvarOrdemMusicasAction(novaLista);
+      setSalvandoOrdem(false);
+    }
+
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setItemArrastado(null);
+  };
+
+  const handleExcluir = async (id: string, titulo: string, donoId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (confirm(`Tem certeza de que deseja eliminar a música "${titulo}"?`)) {
+      try {
+        await serviceDeletarMusica(id, donoId);
+        setMusicas((prev) => prev.filter((m) => m.id !== id));
+      } catch (erro: any) {
+        alert(erro.message || "Erro ao eliminar música.");
+      }
+    }
+  };
+
+  const musicasFiltradas = musicas.filter(
+    (m) =>
+      m.titulo.toLowerCase().includes(termoBusca.toLowerCase()) ||
+      m.artista.toLowerCase().includes(termoBusca.toLowerCase())
+  );
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 w-full flex items-center justify-center">
+        <div className="flex items-center gap-2 text-amber-400">
+          <Loader2 size={24} className="animate-spin" />
+          <p className="text-sm">A carregar músicas...</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
+      <div className="w-full max-w-4xl mx-auto flex-1">
+        {/* Cabeçalho */}
+        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+            >
+              <ArrowLeft size={20} />
+            </Link>
+            <h1 className="text-xl font-bold text-amber-400">Músicas</h1>
+          </div>
+
+          {/* Só mostra o botão de Nova Música se tiver permissão de modificação */}
+          {permissions?.canModifyContent && (
+            <Link
+              href="/musicas/nova"
+              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
+              title="Nova Música"
+            >
+              <Plus size={20} />
+            </Link>
+          )}
+        </header>
+
+        {/* Campo de Pesquisa */}
+        <div className="relative mb-4">
+          <Search size={18} className="absolute left-3 top-3 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Pesquisar por título ou artista..."
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+          />
+        </div>
+
+        {/* Lista de Músicas com Arraste */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Catálogo de Músicas ({musicasFiltradas.length})
+            </p>
+            {salvandoOrdem && (
+              <span className="text-[10px] text-amber-400 animate-pulse font-mono">
+                A guardar ordem...
+              </span>
+            )}
+          </div>
+
+          {musicasFiltradas.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl space-y-3">
+              <Music size={36} className="mx-auto opacity-40" />
+              <p className="text-sm">Ainda não tens nenhuma música guardada.</p>
+              {permissions?.canModifyContent && (
+                <Link 
+                  href="/musicas/nova"
+                  className="inline-block text-xs text-amber-400 font-semibold hover:underline"
+                >
+                  Criar a primeira música
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {musicasFiltradas.map((m, index) => {
+                const modoBuscaAtivo = termoBusca.trim().length > 0;
+
+                return (
+                  <div
+                    key={m.id}
+                    draggable={!modoBuscaAtivo}
+                    onDragStart={() => !modoBuscaAtivo && handleDragStart(index)}
+                    onDragEnter={() => !modoBuscaAtivo && handleDragEnter(index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                    className={`bg-slate-800 p-3.5 rounded-xl border flex items-center justify-between gap-2 transition ${
+                      !modoBuscaAtivo ? "cursor-grab active:cursor-grabbing" : ""
+                    } ${
+                      itemArrastado === index
+                        ? "border-amber-400 opacity-40 bg-slate-700/50"
+                        : "border-slate-700/60 hover:border-slate-600"
+                    }`}
+                  >
+                    {/* Ícone Indicador de Arraste */}
+                    <div
+                      className={`p-1 shrink-0 ${
+                        modoBuscaAtivo
+                          ? "text-slate-700 cursor-not-allowed"
+                          : "text-slate-500 hover:text-amber-400"
+                      }`}
+                    >
+                      <GripVertical size={18} />
+                    </div>
+
+                    {/* Informações da Música */}
+                    <div className="flex-1 overflow-hidden pr-2">
+                      <Link
+                        href={`/musicas/${m.id}`}
+                        className="font-semibold text-slate-100 hover:text-amber-400 transition truncate block"
+                      >
+                        {m.titulo}
+                      </Link>
+                      <p className="text-xs text-slate-400 truncate">{m.artista}</p>
+                    </div>
+
+                    {/* Tom e Botões de Ação */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-bold px-2 py-0.5 rounded text-xs">
+                        {m.tomOriginal}
+                      </span>
+
+                      {/* Botões de Edição e Exclusão restritos a quem pode modificar */}
+                      {permissions?.canModifyContent && (
+                        <>
+                          <Link
+                            href={`/musicas/${m.id}/editar`}
+                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition"
+                            title="Editar"
+                          >
+                            <Edit size={16} />
+                          </Link>
+                          <button
+                            onClick={(e) => handleExcluir(m.id, m.titulo, m.userId, e)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/repertorios/[id]/apresentacao/page.tsx">
+"use client";
+
+import { useState, useEffect, use, useRef } from "react";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  List,
+  X,
+  Maximize2,
+  Minimize2,
+  Play,
+  Pause,
+  Plus,
+  Minus,
+  Type,
+} from "lucide-react";
+
+import { transporCifra, transporNota } from "@/lib/cifras";
+import { serviceGetRepertorioPorId, serviceGetTodasMusicas } from "@/lib/firebase-functions";
+
+interface Musica {
+  id: string;
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+  cifra?: string;
+}
+
+export default function ModoApresentacaoPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: repertorioId } = use(params);
+
+  const [musicas, setMusicas] = useState<Musica[]>([]);
+  const [indexAtual, setIndexAtual] = useState(0);
+  const [carregando, setCarregando] = useState(true);
+  const [menuAberto, setMenuAberto] = useState(false);
+  const [fullScreen, setFullScreen] = useState(false);
+
+  const [transposicoes, setTransposicoes] = useState<{ [key: number]: number }>({});
+  const [tamanhoFonte, setTamanhoFonte] = useState(15);
+
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [scrollSpeed, setScrollSpeed] = useState(0.030); 
+  const scrollRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let wakeLock: any = null;
+    async function solicitarWakeLock() {
+      try {
+        if ("wakeLock" in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request("screen");
+        }
+      } catch (err) {
+        console.error("Erro Wake Lock:", err);
+      }
+    }
+    solicitarWakeLock();
+    return () => {
+      if (wakeLock !== null) wakeLock.release();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isScrolling) {
+      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
+      return;
+    }
+
+    let lastTime = performance.now();
+    let accumulatedPixels = 0;
+
+    const step = (currentTime: number) => {
+      const delta = currentTime - lastTime;
+      lastTime = currentTime;
+      accumulatedPixels += scrollSpeed * delta;
+
+      if (accumulatedPixels >= 1) {
+        const pixelsToScroll = Math.floor(accumulatedPixels);
+        window.scrollBy({ top: pixelsToScroll, behavior: "auto" });
+        accumulatedPixels -= pixelsToScroll;
+      }
+
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 2) {
+        setIsScrolling(false);
+        return;
+      }
+      scrollRef.current = requestAnimationFrame(step);
+    };
+
+    scrollRef.current = requestAnimationFrame(step);
+    return () => {
+      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
+    };
+  }, [isScrolling, scrollSpeed]);
+
+  const mudarMusicaComReset = (novoIndex: number) => {
+    setIsScrolling(false);
+    setIndexAtual(novoIndex);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    async function carregarApresentacao() {
+      try {
+        setCarregando(true);
+        
+        // 1. Busca o repertório através do serviço centralizado
+        const docRep: any = await serviceGetRepertorioPorId(repertorioId);
+        if (!docRep) return;
+
+        const musicasIds: string[] = docRep.musicasIds || [];
+        if (musicasIds.length === 0) {
+          setCarregando(false);
+          return;
+        }
+
+        // 2. Busca todas as músicas através do serviço centralizado
+        const listaMusicasGeral = await serviceGetTodasMusicas();
+        const mapaMusicas = new Map<string, Musica>();
+
+        listaMusicasGeral.forEach((m: any) => {
+          mapaMusicas.set(m.id, {
+            id: m.id,
+            titulo: m.titulo || "Sem título",
+            artista: m.artista || "Artista desconhecido",
+            tomOriginal: m.tomOriginal || "C",
+            cifra: m.cifra || "Cifra não cadastrada.",
+          });
+        });
+
+        const listaOrdenada = musicasIds
+          .map((id) => mapaMusicas.get(id))
+          .filter(Boolean) as Musica[];
+
+        setMusicas(listaOrdenada);
+      } catch (erro) {
+        console.error("Erro:", erro);
+      } finally {
+        setCarregando(false);
+      }
+    }
+    carregarApresentacao();
+  }, [repertorioId]);
+
+  const musicaAtual = musicas[indexAtual];
+  const semitonsAtuais = transposicoes[indexAtual] || 0;
+
+  const obterTomTransposto = () => {
+    if (!musicaAtual) return "C";
+    return transporNota(musicaAtual.tomOriginal || "C", semitonsAtuais);
+  };
+
+  const alterarTom = (direcao: number) => {
+    setTransposicoes((prev) => ({
+      ...prev,
+      [indexAtual]: (prev[indexAtual] || 0) + direcao,
+    }));
+  };
+
+  const proximaMusica = () => {
+    if (indexAtual < musicas.length - 1) mudarMusicaComReset(indexAtual + 1);
+  };
+
+  const musicaAnterior = () => {
+    if (indexAtual > 0) mudarMusicaComReset(indexAtual - 1);
+  };
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setFullScreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setFullScreen(false);
+      }
+    }
+  };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+        <p className="text-amber-400 font-medium animate-pulse">A carregar...</p>
+      </main>
+    );
+  }
+
+  if (musicas.length === 0) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col items-center justify-center text-center">
+        <p className="text-slate-400 mb-4">Nenhuma música encontrada.</p>
+        <Link href={`/repertorios/${repertorioId}`} className="text-amber-400 underline">
+          Voltar
+        </Link>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 pb-56 pt-16">
+      <header className="fixed top-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-40 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <Link
+            href={`/repertorios/${repertorioId}`}
+            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 shrink-0"
+          >
+            <ArrowLeft size={18} />
+          </Link>
+          <div className="overflow-hidden">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block leading-tight">
+              Música {indexAtual + 1} de {musicas.length}
+            </span>
+            <h1 className="text-sm font-bold text-slate-100 truncate leading-tight">
+              {musicaAtual.titulo}
+            </h1>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={toggleFullScreen}
+            className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800/80 rounded-lg transition"
+          >
+            {fullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+          <button
+            onClick={() => setMenuAberto(true)}
+            className="p-2 bg-slate-800 text-amber-400 hover:bg-slate-700 rounded-lg transition flex items-center gap-1 text-xs font-semibold"
+          >
+            <List size={18} />
+            <span>Setlist</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="max-w-2xl mx-auto px-4 mt-2">
+        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 mb-4 gap-2">
+          <div className="overflow-hidden">
+            <h2 className="text-xl font-bold text-amber-400 truncate">
+              {musicaAtual.titulo}
+            </h2>
+            <p className="text-sm text-slate-400 truncate">{musicaAtual.artista}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 shadow-inner">
+          <pre
+            style={{ fontSize: `${tamanhoFonte}px` }}
+            className="font-mono leading-relaxed whitespace-pre-wrap break-words text-slate-200 font-medium transition-all duration-150"
+          >
+            {transporCifra(musicaAtual.cifra || "", semitonsAtuais)}
+          </pre>
+        </div>
+      </div>
+
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2">
+        
+        <div className="max-w-2xl mx-auto grid grid-cols-2 gap-2">
+          
+          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Tom:</span>
+              <span className="text-xs font-black text-amber-400 font-mono px-1.5 py-0.5 bg-slate-900 rounded border border-slate-800 text-center shrink-0">
+                {obterTomTransposto()}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => alterarTom(-1)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Baixar Tom"
+              >
+                <Minus size={14} />
+              </button>
+              <button
+                onClick={() => alterarTom(1)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Subir Tom"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <Type size={14} className="text-slate-400 shrink-0" />
+              <span className="text-xs font-mono font-bold text-amber-400 shrink-0">{tamanhoFonte}px</span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => setTamanhoFonte((prev) => Math.max(10, prev - 1))}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Diminuir Fonte"
+              >
+                <Minus size={14} />
+              </button>
+              <button
+                onClick={() => setTamanhoFonte((prev) => Math.min(32, prev + 1))}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Aumentar Fonte"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        <div className="max-w-2xl mx-auto bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => setIsScrolling(!isScrolling)}
+              className={`py-2 px-4 rounded-xl font-bold flex items-center justify-center gap-2 text-xs transition shrink-0 ${
+                isScrolling
+                  ? "bg-amber-500 text-slate-950 shadow-md animate-pulse"
+                  : "bg-slate-800 text-amber-400 hover:bg-slate-700"
+              }`}
+            >
+              {isScrolling ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+              <span>{isScrolling ? "A rolar" : "Play"}</span>
+            </button>
+
+            <div className="flex-1 flex flex-col justify-center px-1">
+              <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <span>Lento</span>
+                <span className="text-amber-400 font-mono">Velocidade</span>
+                <span>Rápido</span>
+              </div>
+              <input
+                type="range"
+                min="0.003"
+                max="0.25"
+                step="0.002"
+                value={scrollSpeed}
+                onChange={(e) => setScrollSpeed(parseFloat(e.target.value))}
+                className="w-full accent-amber-400 bg-slate-800 h-2 rounded-lg cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3">
+          <button
+            onClick={musicaAnterior}
+            disabled={indexAtual === 0}
+            className="flex-1 py-2 px-4 bg-slate-800 disabled:opacity-30 disabled:hover:bg-slate-800 hover:bg-slate-700 text-slate-100 font-bold rounded-xl flex items-center justify-center gap-1 transition text-sm"
+          >
+            <ChevronLeft size={18} />
+            <span>Anterior</span>
+          </button>
+
+          <span className="text-xs font-mono font-semibold text-slate-400 px-2 shrink-0">
+            {indexAtual + 1} / {musicas.length}
+          </span>
+
+          <button
+            onClick={proximaMusica}
+            disabled={indexAtual === musicas.length - 1}
+            className="flex-1 py-2 px-4 bg-amber-500 disabled:opacity-30 disabled:hover:bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl flex items-center justify-center gap-1 transition text-sm shadow-md"
+          >
+            <span>Próxima</span>
+            <ChevronRight size={18} />
+          </button>
+        </div>
+
+      </footer>
+
+      {menuAberto && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex justify-end">
+          <div className="w-full max-w-xs bg-slate-900 h-full p-4 flex flex-col justify-between shadow-2xl border-l border-slate-800">
+            <div>
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
+                <h3 className="font-bold text-amber-400 text-base">
+                  Setlist ({musicas.length})
+                </h3>
+                <button
+                  onClick={() => setMenuAberto(false)}
+                  className="p-1.5 text-slate-400 hover:text-slate-100 rounded-lg bg-slate-800"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-1.5 max-h-[75vh] overflow-y-auto pr-1">
+                {musicas.map((m, i) => {
+                  const tomTransp = transporNota(m.tomOriginal || "C", transposicoes[i] || 0);
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => {
+                        mudarMusicaComReset(i);
+                        setMenuAberto(false);
+                      }}
+                      className={`w-full text-left p-3 rounded-xl border transition flex items-center justify-between ${
+                        indexAtual === i
+                          ? "bg-amber-500/10 border-amber-500 text-amber-400 font-bold"
+                          : "bg-slate-800/50 border-slate-700/50 text-slate-300 hover:bg-slate-800"
+                      }`}
+                    >
+                      <div className="truncate pr-2">
+                        <p className="text-xs truncate">
+                          {i + 1}. {m.titulo}
+                        </p>
+                        <p className="text-[10px] text-slate-400 truncate">
+                          {m.artista}
+                        </p>
+                      </div>
+                      <span className="text-[10px] font-bold bg-slate-900 px-1.5 py-0.5 rounded text-amber-400 border border-slate-700">
+                        {tomTransp}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <button
+              onClick={() => setMenuAberto(false)}
+              className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl text-xs transition"
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+</file>
+
+<file path="app/repertorios/page.tsx">
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, FolderKanban, Search, Loader2 } from "lucide-react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { getUserRole, getPermissions, UserPermissions } from "@/lib/auth";
+import { serviceGetRepertorios, serviceDeletarRepertorio } from "@/lib/firebase-functions";
+import { salvarOrdemRepertoriosAction } from "./actions";
+
+interface Repertorio {
+  id: string;
+  titulo: string;
+  descricao: string;
+  totalMusicas: number;
+  ordem?: number;
+  userId: string;
+}
+
+export default function RepertoriosPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [repertorios, setRepertorios] = useState<Repertorio[]>([]);
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+  const [termoBusca, setTermoBusca] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [itemArrastado, setItemArrastado] = useState<number | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+        
+        // 1. Obtém as permissões do utilizador
+        const role = await getUserRole(currentUser);
+        const userPerms = getPermissions(role);
+        setPermissions(userPerms);
+
+        // 2. Carrega os repertórios através do serviço centralizado
+        await carregarRepertorios();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  const carregarRepertorios = async () => {
+    try {
+      setCarregando(true);
+      const lista = await serviceGetRepertorios();
+      
+      const repertoriosFormatados: Repertorio[] = lista.map((data: any) => {
+        const musicasIds = data.musicasIds || [];
+        return {
+          id: data.id,
+          titulo: data.titulo || "Sem título",
+          descricao: data.descricao || "",
+          totalMusicas: musicasIds.length,
+          ordem: data.ordem ?? 0,
+          userId: data.userId,
+        };
+      });
+
+      repertoriosFormatados.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      setRepertorios(repertoriosFormatados);
+    } catch (erro) {
+      console.error("Erro ao carregar repertórios:", erro);
+    } finally {
+      setCarregando(false);
+    }
+  };
+  
+  const handleDragStart = (index: number) => {
+    dragItem.current = index;
+    setItemArrastado(index);
+  };
+
+  const handleDragEnter = (index: number) => {
+    dragOverItem.current = index;
+  };
+
+  const handleDragEnd = async () => {
+    if (
+      dragItem.current !== null &&
+      dragOverItem.current !== null &&
+      dragItem.current !== dragOverItem.current
+    ) {
+      const novaLista = [...repertorios];
+      const itemMovido = novaLista.splice(dragItem.current, 1)[0];
+      novaLista.splice(dragOverItem.current, 0, itemMovido);
+
+      setRepertorios(novaLista);
+
+      setSalvandoOrdem(true);
+      await salvarOrdemRepertoriosAction(novaLista);
+      setSalvandoOrdem(false);
+    }
+
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setItemArrastado(null);
+  };
+
+  const handleExcluir = async (id: string, titulo: string, donoId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (confirm(`Tem certeza de que deseja eliminar o repertório "${titulo}"?`)) {
+      try {
+        await serviceDeletarRepertorio(id, donoId);
+        setRepertorios((prev) => prev.filter((r) => r.id !== id));
+      } catch (erro: any) {
+        alert(erro.message || "Erro ao eliminar repertório.");
+      }
+    }
+  };
+
+  const repertoriosFiltrados = repertorios.filter(
+    (r) =>
+      r.titulo.toLowerCase().includes(termoBusca.toLowerCase()) ||
+      r.descricao.toLowerCase().includes(termoBusca.toLowerCase())
+  );
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 w-full flex items-center justify-center">
+        <div className="flex items-center gap-2 text-amber-400">
+          <Loader2 size={24} className="animate-spin" />
+          <p className="text-sm">A carregar repertórios...</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
+      <div className="w-full max-w-4xl mx-auto flex-1">
+        {/* Cabeçalho corrigido para Repertórios */}
+        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+            >
+              <ArrowLeft size={20} />
+            </Link>
+            <h1 className="text-xl font-bold text-amber-400">Repertórios</h1>
+          </div>
+
+          {/* Botão para criar novo repertório apontando para /repertorios/novo */}
+          {permissions?.canModifyContent && (
+            <Link
+              href="/repertorios/novo"
+              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
+              title="Novo Repertório"
+            >
+              <Plus size={20} />
+            </Link>
+          )}
+        </header>
+
+        {/* Pesquisa */}
+        <div className="relative mb-4">
+          <Search size={18} className="absolute left-3 top-3 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Pesquisar por título ou descrição..."
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+          />
+        </div>
+
+        {/* Lista de Repertórios */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Todos os Repertórios ({repertoriosFiltrados.length})
+            </p>
+            {salvandoOrdem && (
+              <span className="text-[10px] text-amber-400 animate-pulse font-mono">
+                A guardar ordem...
+              </span>
+            )}
+          </div>
+
+          {repertoriosFiltrados.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl space-y-3">
+              <FolderKanban size={36} className="mx-auto opacity-40" />
+              <p className="text-sm">Nenhum repertório encontrado.</p>
+              {permissions?.canModifyContent && (
+                <Link 
+                  href="/repertorios/novo"
+                  className="inline-block text-xs text-amber-400 font-semibold hover:underline"
+                >
+                  Criar o primeiro repertório
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {repertoriosFiltrados.map((r, index) => {
+                const modoBuscaAtivo = termoBusca.trim().length > 0;
+
+                return (
+                  <div
+                    key={r.id}
+                    draggable={!modoBuscaAtivo}
+                    onDragStart={() => !modoBuscaAtivo && handleDragStart(index)}
+                    onDragEnter={() => !modoBuscaAtivo && handleDragEnter(index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                    className={`bg-slate-800/80 p-4 rounded-xl border flex items-center justify-between gap-3 transition ${
+                      !modoBuscaAtivo ? "cursor-grab active:cursor-grabbing" : ""
+                    } ${
+                      itemArrastado === index
+                        ? "border-amber-400 opacity-40 bg-slate-700/50"
+                        : "border-slate-700/60 hover:border-slate-600"
+                    }`}
+                  >
+                    <div
+                      className={`shrink-0 ${
+                        modoBuscaAtivo
+                          ? "text-slate-700 cursor-not-allowed"
+                          : "text-slate-500 hover:text-amber-400"
+                      }`}
+                    >
+                      <GripVertical size={20} />
+                    </div>
+
+                    <Link
+                      href={`/repertorios/${r.id}`}
+                      className="flex-1 overflow-hidden"
+                    >
+                      <h2 className="font-bold text-slate-100 truncate text-base hover:text-amber-400 transition mb-0.5">
+                        {r.titulo}
+                      </h2>
+                      {r.descricao && (
+                        <p className="text-xs text-slate-400 truncate mb-1">
+                          {r.descricao}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-400 italic">
+                        {r.totalMusicas === 0
+                          ? "Nenhuma música adicionada"
+                          : `${r.totalMusicas} ${
+                              r.totalMusicas === 1 ? "música" : "músicas"
+                            }`}
+                      </p>
+                    </Link>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {permissions?.canModifyContent && (
+                        <>
+                          <Link
+                            href={`/repertorios/${r.id}/editar`}
+                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded-lg transition"
+                            title="Editar"
+                          >
+                            <Edit size={16} />
+                          </Link>
+                          <button
+                            onClick={(e) => handleExcluir(r.id, r.titulo, r.userId, e)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                      <Link
+                        href={`/repertorios/${r.id}`}
+                        className="p-1.5 text-slate-500 hover:text-slate-200 transition"
+                      >
+                        <ChevronRight size={18} />
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
+  );
+}
+</file>
+
+</files>

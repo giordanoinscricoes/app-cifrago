@@ -186,13 +186,17 @@ export default function DetalhesRepertorioPage({
             </div>
           </div>
 
-          <Link
-            href={`/repertorios/${repertorio.id}/editar`}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full transition shrink-0"
-            title="Editar Repertório"
-          >
-            <Edit size={18} />
-          </Link>
+          {/* Botões do canto superior direito */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href={`/repertorios/${repertorio.id}/selecionar-musicas`}
+              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg flex items-center justify-center"
+              title="Gerir / Adicionar Músicas"
+            >
+              <Plus size={20} />
+            </Link>
+            
+          </div>
         </header>
 
         {repertorio.descricao && (
