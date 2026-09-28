@@ -289,14 +289,7 @@ export default function DetalhesRepertorioPage({
           <Play size={20} fill="currentColor" />
           <span>Iniciar Show</span>
         </Link>
-
-        <Link
-          href={`/repertorios/${repertorio.id}/selecionar-musicas`}
-          className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-3.5 rounded-xl flex items-center justify-center transition shrink-0"
-          title="Gerir / Adicionar Músicas"
-        >
-          <Plus size={20} />
-        </Link>
+        
       </div>
     </main>
   );

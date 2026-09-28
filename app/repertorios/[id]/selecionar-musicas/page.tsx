@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Save, Check, Music } from "lucide-react";
+import { ArrowLeft, Save, Check, Music, Search } from "lucide-react";
 import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
 
 interface Musica {
@@ -25,6 +25,9 @@ export default function SelecionarMusicasPage({
   const [musicasSelecionadasIds, setMusicasSelecionadasIds] = useState<string[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
+  
+  // Estado para controlar o que foi digitado na pesquisa
+  const [termoBusca, setTermoBusca] = useState("");
 
   const projectId = "app-cifras-bcdce";
 
@@ -94,6 +97,12 @@ export default function SelecionarMusicasPage({
     }
   };
 
+  // Filtrando a lista de músicas com base no que o usuário digitar (título ou artista)
+  const musicasFiltradas = musicasDisponiveis.filter((m) =>
+    m.titulo.toLowerCase().includes(termoBusca.toLowerCase()) ||
+    m.artista.toLowerCase().includes(termoBusca.toLowerCase())
+  );
+
   if (carregando) {
     return (
       <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
@@ -120,18 +129,34 @@ export default function SelecionarMusicasPage({
           </span>
         </header>
 
-        <p className="text-xs text-slate-400 mb-4">
+        <p className="text-xs text-slate-400 mb-3">
           Selecione as músicas que deseja incluir neste repertório:
         </p>
+
+        {/* Campo de Pesquisa IDÊNTICO ao da página de músicas */}
+        <div className="relative mb-4">
+          <Search size={18} className="absolute left-3 top-3 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Pesquisar por título ou artista..."
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+          />
+        </div>
 
         {musicasDisponiveis.length === 0 ? (
           <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
             <Music size={36} className="mx-auto mb-2 opacity-40" />
             <p className="text-sm">Nenhuma música cadastrada no sistema.</p>
           </div>
+        ) : musicasFiltradas.length === 0 ? (
+          <div className="text-center py-10 text-slate-500 border border-dashed border-slate-800 rounded-xl">
+            <p className="text-sm">Nenhuma música encontrada para "{termoBusca}".</p>
+          </div>
         ) : (
           <div className="space-y-2 pb-20">
-            {musicasDisponiveis.map((m) => {
+            {musicasFiltradas.map((m) => {
               const selecionada = musicasSelecionadasIds.includes(m.id);
               return (
                 <div

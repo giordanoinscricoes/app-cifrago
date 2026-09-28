@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ArrowLeft, Edit, Plus, Minus, Music, RotateCcw, Play, Pause, Type, Maximize2, Minimize2 } from "lucide-react";
 import { buscarMusicaPorIdAction } from "./actions";
 
-// Importa as funções da matriz centralizada
 import { transporCifra, transporNota } from "@/lib/cifras";
 
 interface Musica {
@@ -16,6 +15,7 @@ interface Musica {
   cifra: string;
 }
 
+// ATENÇÃO AQUI: Note que NÃO tem a palavra "async" antes de function
 export default function VerMusicaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: musicaId } = use(params);
 
@@ -168,11 +168,11 @@ export default function VerMusicaPage({ params }: { params: Promise<{ id: string
           </div>
         </div>
 
-        <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 shadow-inner">
+        <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 shadow-inner overflow-x-auto">
           {textoParaExibir ? (
             <pre
               style={{ fontSize: `${tamanhoFonte}px` }}
-              className="font-mono leading-relaxed whitespace-pre-wrap break-words text-slate-200 font-medium transition-all duration-150"
+              className="font-mono leading-relaxed whitespace-pre break-normal text-slate-200 font-medium transition-all duration-150"
             >
               {textoParaExibir}
             </pre>
