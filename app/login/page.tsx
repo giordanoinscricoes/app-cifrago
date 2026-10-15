@@ -79,9 +79,9 @@ export default function LoginPage() {
           <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
             Seus acordes, o seu ritmo
           </p>
-          <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
-            
-          </h1>
+          {/* <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
+            Login
+          </h1> */}
         </div>
 
         {/* Mensagem de Erro, caso exista */}
@@ -92,7 +92,7 @@ export default function LoginPage() {
         )}
 
         {/* Botão Google */}
-        <button
+        {/* <button
           type="button"
           onClick={handleGoogleLogin}
           disabled={googleLoading || loading}
@@ -127,7 +127,7 @@ export default function LoginPage() {
           <div className="flex-grow border-t border-slate-800"></div>
           <span className="px-3 text-xs text-slate-500 uppercase tracking-widest">ou e-mail</span>
           <div className="flex-grow border-t border-slate-800"></div>
-        </div>
+        </div> */}
 
         {/* Formulário Tradicional */}
         <form onSubmit={handleLogin} className="space-y-4">
@@ -200,13 +200,13 @@ export default function LoginPage() {
         </form>
 
         {/* Rodapé / Ir para o Cadastro e Sobre */}
-        <div className="text-center pt-2 border-t border-slate-800/80 space-y-3">
-          <p className="text-xs text-slate-400">
+        <div className="text-center pt-2 space-y-3">
+          {/*<p className="text-xs text-slate-400">
             Ainda não tens uma conta?{" "}
             <Link href="/login-cadastro" className="text-amber-400 font-semibold hover:underline">
               Criar conta
             </Link>
-          </p>
+          </p> */}
 
           {/* Botão que abre a janela "Sobre" estilo Firefox */}
           <div className="pt-2 border-t border-slate-800/50 flex justify-center">
