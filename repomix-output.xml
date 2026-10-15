@@ -352,207 +352,6 @@ export default function RegistoPage() {
 }
 </file>
 
-<file path="app/musicas/[id]/editar/page.tsx">
-"use client";
-
-import { useState, useEffect, use, useRef } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
-import { editarMusicaAction } from "../actions";
-
-export default function EditarMusicaPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id: musicaId } = use(params);
-  const router = useRouter();
-
-  const [titulo, setTitulo] = useState("");
-  const [artista, setArtista] = useState("");
-  const [tomOriginal, setTomOriginal] = useState("C");
-  const [cifra, setCifra] = useState("");
-
-  const [carregando, setCarregando] = useState(true);
-  const [salvando, setSalvando] = useState(false);
-  const [emTelaCheia, setEmTelaCheia] = useState(false);
-
-  const containerCifraRef = useRef<HTMLDivElement>(null);
-  const projectId = "app-cifras-bcdce";
-
-  useEffect(() => {
-    async function carregarMusica() {
-      try {
-        const res = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`,
-          { cache: "no-store" }
-        );
-
-        if (res.ok) {
-          const doc = await res.json();
-          const f = doc.fields || {};
-          setTitulo(f.titulo?.stringValue || "");
-          setArtista(f.artista?.stringValue || "");
-          setTomOriginal(f.tomOriginal?.stringValue || "C");
-          setCifra(f.cifra?.stringValue || "");
-        }
-      } catch (e) {
-        console.error("Erro ao carregar música:", e);
-      } finally {
-        setCarregando(false);
-      }
-    }
-    carregarMusica();
-  }, [musicaId]);
-
-  const alternarTelaCheia = () => {
-    if (!document.fullscreenElement && containerCifraRef.current) {
-      containerCifraRef.current.requestFullscreen().catch((err) => {
-        console.error("Erro ao tentar entrar em tela cheia:", err);
-      });
-      setEmTelaCheia(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-      setEmTelaCheia(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!titulo || !artista) {
-      alert("Por favor, preencha o título e o artista.");
-      return;
-    }
-
-    setSalvando(true);
-    const res = await editarMusicaAction(musicaId, {
-      titulo,
-      artista,
-      tomOriginal,
-      cifra,
-    });
-
-    if (res.sucesso) {
-      router.push("/musicas");
-    } else {
-      alert(res.erro || "Erro ao salvar alterações.");
-      setSalvando(false);
-    }
-  };
-
-  if (carregando) {
-    return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
-        <p className="text-slate-400">A carregar música...</p>
-      </main>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
-      <div>
-        <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
-          <Link
-            href="/musicas"
-            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
-          >
-            <ArrowLeft size={20} />
-          </Link>
-          <h1 className="text-xl font-bold text-amber-400">Editar Música</h1>
-        </header>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Título da Música *
-            </label>
-            <input
-              type="text"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Artista / Banda *
-            </label>
-            <input
-              type="text"
-              value={artista}
-              onChange={(e) => setArtista(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Tom Original
-            </label>
-            <select
-              value={tomOriginal}
-              onChange={(e) => setTomOriginal(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
-            >
-              {[
-                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
-                "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
-              ].map((tom) => (
-                <option key={tom} value={tom}>
-                  {tom}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Bloco da Cifra com suporte a expansão / ecrã cheio */}
-          <div ref={containerCifraRef} className={`${emTelaCheia ? 'bg-slate-900 p-4 h-screen flex flex-col' : ''}`}>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-300">
-                Cifra / Letra
-              </label>
-              <button
-                type="button"
-                onClick={alternarTelaCheia}
-                className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition"
-                title="Expandir campo de texto"
-              >
-                {emTelaCheia ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                <span>{emTelaCheia ? "Normal" : "Expandir"}</span>
-              </button>
-            </div>
-            <textarea
-              value={cifra}
-              onChange={(e) => setCifra(e.target.value)}
-              rows={8}
-              placeholder="Cole aqui a cifra ou letra da música..."
-              className={`w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-amber-400 transition ${
-                emTelaCheia ? "flex-1 h-[80vh]" : ""
-              }`}
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={salvando}
-            className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-700 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 transition mt-6"
-          >
-            <Save size={20} />
-            {salvando ? "A guardar..." : "Salvar Alterações"}
-          </button>
-        </form>
-      </div>
-    </main>
-  );
-}
-</file>
-
 <file path="app/musicas/[id]/actions.ts">
 "use server";
 
@@ -1451,541 +1250,202 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 }
 </file>
 
-<file path="app/login/page.tsx">
-"use client";
-
-import { useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
-import { 
-  signInWithEmailAndPassword, 
-  GoogleAuthProvider, 
-  signInWithPopup 
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import AboutModal from "@/components/AboutModal";
-
-export default function LoginPage() {
-  const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [erroMsg, setErroMsg] = useState("");
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setErroMsg("");
-
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
-    } catch (error: any) {
-      console.error("Erro no login:", error);
-      if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
-        setErroMsg("E-mail ou senha incorretos.");
-      } else if (error.code === "auth/invalid-email") {
-        setErroMsg("O formato do e-mail é inválido.");
-      } else {
-        setErroMsg("Ocorreu um erro ao entrar. Tente novamente.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    setErroMsg("");
-
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      router.push("/");
-    } catch (error: any) {
-      console.error("Erro no login com Google:", error);
-      setErroMsg("Não foi possível autenticar com o Google. Tente novamente.");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-md border border-amber-500/20 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
-        
-        {/* Cabeçalho com o Logótipo do CifraGo */}
-        <div className="flex flex-col items-center py-2 border-b border-slate-800/80 pb-6">
-          <div className="relative w-28 h-24 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
-            <Image
-              src="/logo.png"
-              alt="Logo CifraGo"
-              fill
-              className="object-contain"
-              priority
-            />
-          </div>
-          <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
-            Seus acordes, o seu ritmo
-          </p>
-          <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
-            
-          </h1>
-        </div>
-
-        {/* Mensagem de Erro, caso exista */}
-        {erroMsg && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl text-center">
-            {erroMsg}
-          </div>
-        )}
-
-        {/* Botão Google */}
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={googleLoading || loading}
-          className="w-full bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium py-3 rounded-xl transition flex items-center justify-center gap-3 text-sm shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {googleLoading ? (
-            <Loader2 size={18} className="animate-spin text-amber-400" />
-          ) : (
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#EA4335"
-                d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.8 5 12 5z"
-              />
-              <path
-                fill="#4285F4"
-                d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.3 14.7c-.2-.7-.3-1.5-.3-2.3s.1-1.6.3-2.3L1.6 7.2C.6 9.2 0 11.5 0 13.9s.6 4.7 1.6 6.7l3.7-2.9c-.2-.7-.3-1.5-.3-2.3z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.2 0-5.8-2.1-6.7-5.1L1.6 16c1.9 3.8 5.8 7 10.4 7z"
-              />
-            </svg>
-          )}
-          <span>Continuar com o Google</span>
-        </button>
-
-        <div className="flex items-center my-4">
-          <div className="flex-grow border-t border-slate-800"></div>
-          <span className="px-3 text-xs text-slate-500 uppercase tracking-widest">ou e-mail</span>
-          <div className="flex-grow border-t border-slate-800"></div>
-        </div>
-
-        {/* Formulário Tradicional */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          
-          {/* Campo E-mail */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              E-mail
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-                <Mail size={16} />
-              </span>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nome@exemplo.com"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
-              />
-            </div>
-          </div>
-
-          {/* Campo Senha */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Senha
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-                <Lock size={16} />
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          {/* Botão Submeter */}
-          <button
-            type="submit"
-            disabled={loading || googleLoading}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                <span>A entrar...</span>
-              </>
-            ) : (
-              <>
-                <span>Entrar</span>
-                <ArrowRight size={16} />
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* Rodapé / Ir para o Cadastro e Sobre */}
-        <div className="text-center pt-2 border-t border-slate-800/80 space-y-3">
-          <p className="text-xs text-slate-400">
-            Ainda não tens uma conta?{" "}
-            <Link href="/login-cadastro" className="text-amber-400 font-semibold hover:underline">
-              Criar conta
-            </Link>
-          </p>
-
-          {/* Botão que abre a janela "Sobre" estilo Firefox */}
-          <div className="pt-2 border-t border-slate-800/50 flex justify-center">
-            <button 
-              type="button"
-              onClick={() => setIsAboutOpen(true)}
-              className="text-[11px] uppercase tracking-widest text-slate-400 hover:text-amber-400 font-medium transition"
-            >
-              Sobre o CifraGo
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Modal Sobre Atribuído */}
-      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
-    </main>
-  );
-}
-</file>
-
-<file path="app/musicas/[id]/page.tsx">
+<file path="app/musicas/[id]/editar/page.tsx">
 "use client";
 
 import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Edit, Plus, Minus, Music, RotateCcw, Play, Pause, Type, Maximize2, Minimize2 } from "lucide-react";
-import { buscarMusicaPorIdAction } from "./actions";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
+import { editarMusicaAction } from "../actions";
 
-// Importa as funções da matriz centralizada
-import { transporCifra, transporNota } from "@/lib/cifras";
-
-interface Musica {
-  id: string;
-  titulo: string;
-  artista: string;
-  tomOriginal: string;
-  cifra: string;
-}
-
-export default function VerMusicaPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditarMusicaPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id: musicaId } = use(params);
+  const router = useRouter();
 
-  const [musica, setMusica] = useState<Musica | null>(null);
+  const [titulo, setTitulo] = useState("");
+  const [artista, setArtista] = useState("");
+  const [tomOriginal, setTomOriginal] = useState("C");
+  const [cifra, setCifra] = useState("");
+
   const [carregando, setCarregando] = useState(true);
-  const [erroMsg, setErroMsg] = useState("");
+  const [salvando, setSalvando] = useState(false);
+  const [emTelaCheia, setEmTelaCheia] = useState(false);
 
-  const [semitonos, setSemitonos] = useState(0);
-  const [tamanhoFonte, setTamanhoFonte] = useState(15);
-  const [fullScreen, setFullScreen] = useState(false);
-
-  // Estados para o Auto-scroll (Play)
-  const [isScrolling, setIsScrolling] = useState(false);
-  const [scrollSpeed, setScrollSpeed] = useState(0.030);
-  const scrollRef = useRef<number | null>(null);
+  const containerCifraRef = useRef<HTMLDivElement>(null);
+  const projectId = "app-cifras-bcdce";
 
   useEffect(() => {
-    async function carregar() {
-      setCarregando(true);
-      setErroMsg("");
-      const res = await buscarMusicaPorIdAction(musicaId);
-      if (res.sucesso && res.musica) {
-        setMusica(res.musica);
-      } else {
-        setErroMsg(res.erro || "Erro ao carregar música.");
-      }
-      setCarregando(false);
-    }
+    async function carregarMusica() {
+      try {
+        const res = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`,
+          { cache: "no-store" }
+        );
 
-    carregar();
+        if (res.ok) {
+          const doc = await res.json();
+          const f = doc.fields || {};
+          setTitulo(f.titulo?.stringValue || "");
+          setArtista(f.artista?.stringValue || "");
+          setTomOriginal(f.tomOriginal?.stringValue || "C");
+          setCifra(f.cifra?.stringValue || "");
+        }
+      } catch (e) {
+        console.error("Erro ao carregar música:", e);
+      } finally {
+        setCarregando(false);
+      }
+    }
+    carregarMusica();
   }, [musicaId]);
 
-  // Lógica do Auto-scroll
-  useEffect(() => {
-    if (!isScrolling) {
-      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
-      return;
-    }
-
-    let lastTime = performance.now();
-    let accumulatedPixels = 0;
-
-    const step = (currentTime: number) => {
-      const delta = currentTime - lastTime;
-      lastTime = currentTime;
-      accumulatedPixels += scrollSpeed * delta;
-
-      if (accumulatedPixels >= 1) {
-        const pixelsToScroll = Math.floor(accumulatedPixels);
-        window.scrollBy({ top: pixelsToScroll, behavior: "auto" });
-        accumulatedPixels -= pixelsToScroll;
-      }
-
-      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 2) {
-        setIsScrolling(false);
-        return;
-      }
-      scrollRef.current = requestAnimationFrame(step);
-    };
-
-    scrollRef.current = requestAnimationFrame(step);
-    return () => {
-      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
-    };
-  }, [isScrolling, scrollSpeed]);
-
-  const toggleFullScreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setFullScreen(true);
+  const alternarTelaCheia = () => {
+    if (!document.fullscreenElement && containerCifraRef.current) {
+      containerCifraRef.current.requestFullscreen().catch((err) => {
+        console.error("Erro ao tentar entrar em tela cheia:", err);
+      });
+      setEmTelaCheia(true);
     } else {
       if (document.exitFullscreen) {
         document.exitFullscreen();
-        setFullScreen(false);
       }
+      setEmTelaCheia(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo || !artista) {
+      alert("Por favor, preencha o título e o artista.");
+      return;
+    }
+
+    setSalvando(true);
+    const res = await editarMusicaAction(musicaId, {
+      titulo,
+      artista,
+      tomOriginal,
+      cifra,
+    });
+
+    if (res.sucesso) {
+      router.push("/musicas");
+    } else {
+      alert(res.erro || "Erro ao salvar alterações.");
+      setSalvando(false);
     }
   };
 
   if (carregando) {
     return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
-        <p className="text-amber-400 font-medium animate-pulse">A carregar música...</p>
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-slate-400">A carregar música...</p>
       </main>
     );
   }
-
-  if (erroMsg || !musica) {
-    return (
-      <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col items-center justify-center gap-4">
-        <p className="text-red-400">{erroMsg || "Música não encontrada."}</p>
-        <Link href="/musicas" className="text-amber-400 underline">
-          Voltar para Músicas
-        </Link>
-      </main>
-    );
-  }
-
-  const tomAtual = transporNota(musica.tomOriginal || "C", semitonos);
-  const textoParaExibir = transporCifra(musica.cifra, semitonos);
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 pb-52 pt-16">
-      {/* Barra Superior Fixa */}
-      <header className="fixed top-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-40 px-4 py-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 overflow-hidden">
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
+      <div>
+        <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
           <Link
             href="/musicas"
-            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 shrink-0"
-            title="Voltar para Músicas"
+            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={20} />
           </Link>
-          <div className="overflow-hidden">
-            <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block leading-tight">
-              Música Individual
-            </span>
-            <h1 className="text-sm font-bold text-slate-100 truncate leading-tight">
-              {musica.titulo}
-            </h1>
+          <h1 className="text-xl font-bold text-amber-400">Editar Música</h1>
+        </header>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Título da Música *
+            </label>
+            <input
+              type="text"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
+              required
+            />
           </div>
-        </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
-          <button
-            onClick={toggleFullScreen}
-            className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800/80 rounded-lg transition"
-            title={fullScreen ? "Minimizar ecrã" : "Ecrã inteiro"}
-          >
-            {fullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
-          </button>
-          
-          <Link
-            href={`/musicas/${musica.id}/editar`}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg transition flex items-center gap-1 text-xs font-semibold"
-          >
-            <Edit size={16} />
-            <span>Editar</span>
-          </Link>
-        </div>
-      </header>
-
-      {/* Conteúdo Principal */}
-      <div className="max-w-2xl mx-auto px-4 mt-2">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 mb-4 gap-2">
-          <div className="overflow-hidden">
-            <h2 className="text-xl font-bold text-amber-400 truncate">
-              {musica.titulo}
-            </h2>
-            <p className="text-sm text-slate-400 truncate">{musica.artista}</p>
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Artista / Banda *
+            </label>
+            <input
+              type="text"
+              value={artista}
+              onChange={(e) => setArtista(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
+              required
+            />
           </div>
-        </div>
 
-        <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 shadow-inner">
-          {textoParaExibir ? (
-            <pre
-              style={{ fontSize: `${tamanhoFonte}px` }}
-              className="font-mono leading-relaxed whitespace-pre-wrap break-words text-slate-200 font-medium transition-all duration-150"
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Tom Original
+            </label>
+            <select
+              value={tomOriginal}
+              onChange={(e) => setTomOriginal(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
             >
-              {textoParaExibir}
-            </pre>
-          ) : (
-            <div className="text-center py-12 text-slate-500">
-              <Music size={32} className="mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Nenhuma cifra/letra cadastrada para esta música.</p>
-              <Link
-                href={`/musicas/${musica.id}/editar`}
-                className="mt-3 text-xs text-amber-400 font-semibold underline block"
-              >
-                + Adicionar Cifra
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Controlos Inferiores Fixos */}
-      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2">
-        
-        {/* Barra Dividida em Duas Metades: Esquerda (Tom) e Direita (Tamanho da Fonte) */}
-        <div className="max-w-2xl mx-auto grid grid-cols-2 gap-2">
-          
-          {/* Metade Esquerda: Controlo de Tom */}
-          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
-            <div className="flex items-center gap-1.5 overflow-hidden">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Tom:</span>
-              <span className="text-xs font-black text-amber-400 font-mono px-1.5 py-0.5 bg-slate-900 rounded border border-slate-800 text-center shrink-0">
-                {tomAtual}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={() => setSemitonos((prev) => prev - 1)}
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
-                title="Baixar Tom"
-              >
-                <Minus size={14} />
-              </button>
-
-              <button
-                onClick={() => setSemitonos(0)}
-                disabled={semitonos === 0}
-                className={`p-1.5 rounded-lg transition active:scale-95 ${
-                  semitonos === 0
-                    ? "bg-slate-900/50 text-slate-600 cursor-not-allowed"
-                    : "bg-slate-800 text-amber-400 hover:bg-slate-700"
-                }`}
-                title="Voltar ao tom original"
-              >
-                <RotateCcw size={14} />
-              </button>
-
-              <button
-                onClick={() => setSemitonos((prev) => prev + 1)}
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
-                title="Subir Tom"
-              >
-                <Plus size={14} />
-              </button>
-            </div>
+              {[
+                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+                "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
+              ].map((tom) => (
+                <option key={tom} value={tom}>
+                  {tom}
+                </option>
+              ))}
+            </select>
           </div>
 
-          {/* Metade Direita: Controlo de Tamanho de Fonte */}
-          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
-            <div className="flex items-center gap-1.5 overflow-hidden">
-              <Type size={14} className="text-slate-400 shrink-0" />
-              <span className="text-xs font-mono font-bold text-amber-400 shrink-0">{tamanhoFonte}px</span>
-            </div>
-
-            <div className="flex items-center gap-1 shrink-0">
+          {/* Bloco da Cifra com suporte a expansão / ecrã cheio */}
+          <div ref={containerCifraRef} className={`${emTelaCheia ? 'bg-slate-900 p-4 h-screen flex flex-col' : ''}`}>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-300">
+                Cifra / Letra
+              </label>
               <button
-                onClick={() => setTamanhoFonte((prev) => Math.max(10, prev - 1))}
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
-                title="Diminuir Fonte"
+                type="button"
+                onClick={alternarTelaCheia}
+                className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition"
+                title="Expandir campo de texto"
               >
-                <Minus size={14} />
-              </button>
-              <button
-                onClick={() => setTamanhoFonte((prev) => Math.min(32, prev + 1))}
-                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
-                title="Aumentar Fonte"
-              >
-                <Plus size={14} />
+                {emTelaCheia ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                <span>{emTelaCheia ? "Normal" : "Expandir"}</span>
               </button>
             </div>
-          </div>
-
-        </div>
-
-        {/* Controlo de Auto-scroll com Slider (Play) */}
-        <div className="max-w-2xl mx-auto bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
-          <div className="flex items-center justify-between gap-3">
-            <button
-              onClick={() => setIsScrolling(!isScrolling)}
-              className={`py-2 px-4 rounded-xl font-bold flex items-center justify-center gap-2 text-xs transition shrink-0 ${
-                isScrolling
-                  ? "bg-amber-500 text-slate-950 shadow-md animate-pulse"
-                  : "bg-slate-800 text-amber-400 hover:bg-slate-700"
+            <textarea
+              value={cifra}
+              onChange={(e) => setCifra(e.target.value)}
+              rows={8}
+              placeholder="Cole aqui a cifra ou letra da música..."
+              className={`w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-amber-400 transition ${
+                emTelaCheia ? "flex-1 h-[80vh]" : ""
               }`}
-            >
-              {isScrolling ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
-              <span>{isScrolling ? "A rolar" : "Play"}</span>
-            </button>
-
-            <div className="flex-1 flex flex-col justify-center px-1">
-              <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                <span>Lento</span>
-                <span className="text-amber-400 font-mono">Velocidade</span>
-                <span>Rápido</span>
-              </div>
-              <input
-                type="range"
-                min="0.003"
-                max="0.25"
-                step="0.002"
-                value={scrollSpeed}
-                onChange={(e) => setScrollSpeed(parseFloat(e.target.value))}
-                className="w-full accent-amber-400 bg-slate-800 h-2 rounded-lg cursor-pointer"
-              />
-            </div>
+            />
           </div>
-        </div>
 
-      </footer>
+          <button
+            type="submit"
+            disabled={salvando}
+            className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-700 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 transition mt-6"
+          >
+            <Save size={20} />
+            {salvando ? "A guardar..." : "Salvar Alterações"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
@@ -2153,312 +1613,6 @@ export default function EditarRepertorioPage({
           {salvando ? "A guardar..." : "Salvar Alterações"}
         </button>
       </form>
-    </main>
-  );
-}
-</file>
-
-<file path="app/repertorios/[id]/page.tsx">
-"use client";
-
-import { useState, useEffect, use, useRef } from "react";
-import Link from "next/link";
-import { ArrowLeft, Plus, GripVertical, Trash2, Edit, Music, ChevronRight, Play } from "lucide-react";
-import {
-  removerMusicaDoRepertorioAction,
-  reordenarMusicasDoRepertorioAction,
-} from "./actions";
-
-interface Musica {
-  id: string;
-  titulo: string;
-  artista: string;
-  tomOriginal: string;
-}
-
-interface Repertorio {
-  id: string;
-  titulo: string;
-  descricao: string;
-  musicasIds: string[];
-}
-
-export default function DetalhesRepertorioPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id: repertorioId } = use(params);
-
-  const [repertorio, setRepertorio] = useState<Repertorio | null>(null);
-  const [musicas, setMusicas] = useState<Musica[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
-
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
-  const [itemArrastado, setItemArrastado] = useState<number | null>(null);
-
-  const projectId = "app-cifras-bcdce";
-
-  useEffect(() => {
-    async function carregarDados() {
-      try {
-        setCarregando(true);
-
-        const resRep = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`,
-          { cache: "no-store" }
-        );
-
-        if (!resRep.ok) return;
-
-        const docRep = await resRep.json();
-        const fRep = docRep.fields || {};
-        const musicasIds: string[] =
-          fRep.musicasIds?.arrayValue?.values?.map(
-            (v: any) => v.stringValue
-          ) || [];
-
-        setRepertorio({
-          id: repertorioId,
-          titulo: fRep.titulo?.stringValue || "Sem título",
-          descricao: fRep.descricao?.stringValue || "",
-          musicasIds,
-        });
-
-        const resMusicas = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
-          { cache: "no-store" }
-        );
-
-        if (resMusicas.ok) {
-          const dadosMusicas = await resMusicas.json();
-          if (dadosMusicas.documents) {
-            const mapaMusicas = new Map<string, Musica>();
-            dadosMusicas.documents.forEach((doc: any) => {
-              const id = doc.name.split("/").pop();
-              const f = doc.fields || {};
-              mapaMusicas.set(id, {
-                id,
-                titulo: f.titulo?.stringValue || "Sem título",
-                artista: f.artista?.stringValue || "Artista desconhecido",
-                tomOriginal: f.tomOriginal?.stringValue || "C",
-              });
-            });
-
-            const listaOrdenada = musicasIds
-              .map((id) => mapaMusicas.get(id))
-              .filter(Boolean) as Musica[];
-
-            setMusicas(listaOrdenada);
-          }
-        }
-      } catch (erro) {
-        console.error("Erro ao carregar dados:", erro);
-      } finally {
-        setCarregando(false);
-      }
-    }
-
-    carregarDados();
-  }, [repertorioId]);
-
-  const handleDragStart = (index: number) => {
-    dragItem.current = index;
-    setItemArrastado(index);
-  };
-
-  const handleDragEnter = (index: number) => {
-    dragOverItem.current = index;
-  };
-
-  const handleDragEnd = async () => {
-    if (
-      dragItem.current !== null &&
-      dragOverItem.current !== null &&
-      dragItem.current !== dragOverItem.current
-    ) {
-      const novalist = [...musicas];
-      const itemMovido = novalist.splice(dragItem.current, 1)[0];
-      novalist.splice(dragOverItem.current, 0, itemMovido);
-
-      setMusicas(novalist);
-
-      const novosIds = novalist.map((m) => m.id);
-      setSalvandoOrdem(true);
-      try {
-        await reordenarMusicasDoRepertorioAction(repertorioId, novosIds);
-      } catch (err) {
-        console.error("Erro ao salvar ordem:", err);
-      } finally {
-        setSalvandoOrdem(false);
-      }
-    }
-
-    dragItem.current = null;
-    dragOverItem.current = null;
-    setItemArrastado(null);
-  };
-
-  const handleRemoverMusica = async (musicaId: string, titulo: string) => {
-    if (confirm(`Remover "${titulo}" deste repertório?`)) {
-      const novasList = musicas.filter((m) => m.id !== musicaId);
-      setMusicas(novasList);
-      await removerMusicaDoRepertorioAction(repertorioId, musicaId);
-    }
-  };
-
-  if (carregando) {
-    return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
-        <p className="text-slate-400">A carregar repertório...</p>
-      </main>
-    );
-  }
-
-  if (!repertorio) {
-    return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
-        <p className="text-red-400">Repertório não encontrado.</p>
-        <Link href="/repertorios" className="text-amber-400 underline mt-4 block">
-          Voltar para Repertórios
-        </Link>
-      </main>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
-      <div>
-        {/* Cabeçalho */}
-        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
-          <div className="flex items-center gap-3 overflow-hidden">
-            <Link
-              href="/repertorios"
-              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition shrink-0"
-            >
-              <ArrowLeft size={20} />
-            </Link>
-            <div className="overflow-hidden">
-              <h1 className="text-lg font-bold text-amber-400 leading-tight truncate">
-                {repertorio.titulo}
-              </h1>
-            </div>
-          </div>
-
-          {/* Botões do canto superior direito */}
-          <div className="flex items-center gap-2 shrink-0">
-            <Link
-              href={`/repertorios/${repertorio.id}/selecionar-musicas`}
-              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg flex items-center justify-center"
-              title="Gerir / Adicionar Músicas"
-            >
-              <Plus size={20} />
-            </Link>
-            
-          </div>
-        </header>
-
-        {repertorio.descricao && (
-          <p className="text-xs text-slate-400 bg-slate-800/40 p-3 rounded-xl border border-slate-800 mb-4">
-            {repertorio.descricao}
-          </p>
-        )}
-
-        {/* Lista de Músicas com Arraste */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Músicas ({musicas.length})
-            </p>
-            {salvandoOrdem && (
-              <span className="text-[10px] text-amber-400 animate-pulse font-mono">
-                A guardar nova ordem...
-              </span>
-            )}
-          </div>
-
-          {musicas.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
-              <Music size={36} className="mx-auto mb-2 opacity-40" />
-              <p className="text-sm">Nenhuma música neste repertório.</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {musicas.map((m, index) => (
-                <div
-                  key={m.id}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragEnter={() => handleDragEnter(index)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => e.preventDefault()}
-                  className={`bg-slate-800 p-3.5 rounded-xl border flex items-center justify-between gap-2 transition cursor-grab active:cursor-grabbing ${
-                    itemArrastado === index
-                      ? "border-amber-400 opacity-40 bg-slate-700/50"
-                      : "border-slate-700/60 hover:border-slate-600"
-                  }`}
-                >
-                  <div className="p-1 text-slate-500 hover:text-amber-400 shrink-0">
-                    <GripVertical size={18} />
-                  </div>
-
-                  <div className="flex-1 overflow-hidden pr-2">
-                    <Link
-                      href={`/musicas/${m.id}`}
-                      className="font-semibold text-slate-100 hover:text-amber-400 transition truncate block text-sm"
-                    >
-                      {index + 1}. {m.titulo}
-                    </Link>
-                    <p className="text-xs text-slate-400 truncate">{m.artista}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-bold px-2 py-0.5 rounded text-xs">
-                      {m.tomOriginal}
-                    </span>
-                    <button
-                      onClick={() => handleRemoverMusica(m.id, m.titulo)}
-                      className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
-                      title="Remover do Repertório"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                    <Link
-                      href={`/musicas/${m.id}`}
-                      className="p-1 text-slate-500 hover:text-slate-200 transition"
-                    >
-                      <ChevronRight size={18} />
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      {/* Botões de Ação Fixos */}
-      <div className="sticky bottom-4 pt-4 flex gap-2">
-        <Link
-          href={`/repertorios/${repertorio.id}/apresentacao`}
-          className={`flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg transition ${
-            musicas.length === 0 ? "opacity-50 pointer-events-none" : ""
-          }`}
-        >
-          <Play size={20} fill="currentColor" />
-          <span>Iniciar Show</span>
-        </Link>
-
-        <Link
-          href={`/repertorios/${repertorio.id}/selecionar-musicas`}
-          className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 p-3.5 rounded-xl flex items-center justify-center transition shrink-0"
-          title="Gerir / Adicionar Músicas"
-        >
-          <Plus size={20} />
-        </Link>
-      </div>
     </main>
   );
 }
@@ -3031,6 +2185,546 @@ export const db = initializeFirestore(app, {
 });
 </file>
 
+<file path="app/login/page.tsx">
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { 
+  signInWithEmailAndPassword, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import AboutModal from "@/components/AboutModal";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [erroMsg, setErroMsg] = useState("");
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setErroMsg("");
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      router.push("/");
+    } catch (error: any) {
+      console.error("Erro no login:", error);
+      if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+        setErroMsg("E-mail ou senha incorretos.");
+      } else if (error.code === "auth/invalid-email") {
+        setErroMsg("O formato do e-mail é inválido.");
+      } else {
+        setErroMsg("Ocorreu um erro ao entrar. Tente novamente.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    setErroMsg("");
+
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      router.push("/");
+    } catch (error: any) {
+      console.error("Erro no login com Google:", error);
+      setErroMsg("Não foi possível autenticar com o Google. Tente novamente.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-md border border-amber-500/20 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
+        
+        {/* Cabeçalho com o Logótipo do CifraGo */}
+        <div className="flex flex-col items-center py-2 border-b border-slate-800/80 pb-6">
+          <div className="relative w-28 h-24 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
+            <Image
+              src="/logo.png"
+              alt="Logo CifraGo"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
+            Seus acordes, o seu ritmo
+          </p>
+          {/* <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
+            Login
+          </h1> */}
+        </div>
+
+        {/* Mensagem de Erro, caso exista */}
+        {erroMsg && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl text-center">
+            {erroMsg}
+          </div>
+        )}
+
+        {/* Botão Google */}
+        {/* <button
+          type="button"
+          onClick={handleGoogleLogin}
+          disabled={googleLoading || loading}
+          className="w-full bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium py-3 rounded-xl transition flex items-center justify-center gap-3 text-sm shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {googleLoading ? (
+            <Loader2 size={18} className="animate-spin text-amber-400" />
+          ) : (
+            <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <path
+                fill="#EA4335"
+                d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.8 5 12 5z"
+              />
+              <path
+                fill="#4285F4"
+                d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.3 14.7c-.2-.7-.3-1.5-.3-2.3s.1-1.6.3-2.3L1.6 7.2C.6 9.2 0 11.5 0 13.9s.6 4.7 1.6 6.7l3.7-2.9c-.2-.7-.3-1.5-.3-2.3z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.2 0-5.8-2.1-6.7-5.1L1.6 16c1.9 3.8 5.8 7 10.4 7z"
+              />
+            </svg>
+          )}
+          <span>Continuar com o Google</span>
+        </button>
+
+        <div className="flex items-center my-4">
+          <div className="flex-grow border-t border-slate-800"></div>
+          <span className="px-3 text-xs text-slate-500 uppercase tracking-widest">ou e-mail</span>
+          <div className="flex-grow border-t border-slate-800"></div>
+        </div> */}
+
+        {/* Formulário Tradicional */}
+        <form onSubmit={handleLogin} className="space-y-4">
+          
+          {/* Campo E-mail */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              E-mail
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Mail size={16} />
+              </span>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nome@exemplo.com"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
+          </div>
+
+          {/* Campo Senha */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Senha
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Lock size={16} />
+              </span>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Botão Submeter */}
+          <button
+            type="submit"
+            disabled={loading || googleLoading}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>A entrar...</span>
+              </>
+            ) : (
+              <>
+                <span>Entrar</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Rodapé / Ir para o Cadastro e Sobre */}
+        <div className="text-center pt-2 space-y-3">
+          <p className="text-xs text-slate-400">
+            Ainda não tens uma conta?{" "}
+            <Link href="/login-cadastro" className="text-amber-400 font-semibold hover:underline">
+              Criar conta
+            </Link>
+          </p>
+
+          {/* Botão que abre a janela "Sobre" estilo Firefox */}
+          <div className="pt-2 border-t border-slate-800/50 flex justify-center">
+            <button 
+              type="button"
+              onClick={() => setIsAboutOpen(true)}
+              className="text-[11px] uppercase tracking-widest text-slate-400 hover:text-amber-400 font-medium transition"
+            >
+              Sobre o CifraGo
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Modal Sobre Atribuído */}
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
+    </main>
+  );
+}
+</file>
+
+<file path="app/musicas/[id]/page.tsx">
+"use client";
+
+import { useState, useEffect, use, useRef } from "react";
+import Link from "next/link";
+import { ArrowLeft, Edit, Plus, Minus, Music, RotateCcw, Play, Pause, Type, Maximize2, Minimize2 } from "lucide-react";
+import { buscarMusicaPorIdAction } from "./actions";
+
+import { transporCifra, transporNota } from "@/lib/cifras";
+
+interface Musica {
+  id: string;
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+  cifra: string;
+}
+
+// ATENÇÃO AQUI: Note que NÃO tem a palavra "async" antes de function
+export default function VerMusicaPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: musicaId } = use(params);
+
+  const [musica, setMusica] = useState<Musica | null>(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erroMsg, setErroMsg] = useState("");
+
+  const [semitonos, setSemitonos] = useState(0);
+  const [tamanhoFonte, setTamanhoFonte] = useState(15);
+  const [fullScreen, setFullScreen] = useState(false);
+
+  // Estados para o Auto-scroll (Play)
+  const [isScrolling, setIsScrolling] = useState(false);
+  const [scrollSpeed, setScrollSpeed] = useState(0.030);
+  const scrollRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    async function carregar() {
+      setCarregando(true);
+      setErroMsg("");
+      const res = await buscarMusicaPorIdAction(musicaId);
+      if (res.sucesso && res.musica) {
+        setMusica(res.musica);
+      } else {
+        setErroMsg(res.erro || "Erro ao carregar música.");
+      }
+      setCarregando(false);
+    }
+
+    carregar();
+  }, [musicaId]);
+
+  // Lógica do Auto-scroll
+  useEffect(() => {
+    if (!isScrolling) {
+      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
+      return;
+    }
+
+    let lastTime = performance.now();
+    let accumulatedPixels = 0;
+
+    const step = (currentTime: number) => {
+      const delta = currentTime - lastTime;
+      lastTime = currentTime;
+      accumulatedPixels += scrollSpeed * delta;
+
+      if (accumulatedPixels >= 1) {
+        const pixelsToScroll = Math.floor(accumulatedPixels);
+        window.scrollBy({ top: pixelsToScroll, behavior: "auto" });
+        accumulatedPixels -= pixelsToScroll;
+      }
+
+      if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 2) {
+        setIsScrolling(false);
+        return;
+      }
+      scrollRef.current = requestAnimationFrame(step);
+    };
+
+    scrollRef.current = requestAnimationFrame(step);
+    return () => {
+      if (scrollRef.current) cancelAnimationFrame(scrollRef.current);
+    };
+  }, [isScrolling, scrollSpeed]);
+
+  const toggleFullScreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+      setFullScreen(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+        setFullScreen(false);
+      }
+    }
+  };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-amber-400 font-medium animate-pulse">A carregar música...</p>
+      </main>
+    );
+  }
+
+  if (erroMsg || !musica) {
+    return (
+      <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col items-center justify-center gap-4">
+        <p className="text-red-400">{erroMsg || "Música não encontrada."}</p>
+        <Link href="/musicas" className="text-amber-400 underline">
+          Voltar para Músicas
+        </Link>
+      </main>
+    );
+  }
+
+  const tomAtual = transporNota(musica.tomOriginal || "C", semitonos);
+  const textoParaExibir = transporCifra(musica.cifra, semitonos);
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 pb-52 pt-16">
+      {/* Barra Superior Fixa */}
+      <header className="fixed top-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 z-40 px-4 py-2.5 flex items-center justify-between">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <Link
+            href="/musicas"
+            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 shrink-0"
+            title="Voltar para Músicas"
+          >
+            <ArrowLeft size={18} />
+          </Link>
+          <div className="overflow-hidden">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block leading-tight">
+              Música Individual
+            </span>
+            <h1 className="text-sm font-bold text-slate-100 truncate leading-tight">
+              {musica.titulo}
+            </h1>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            onClick={toggleFullScreen}
+            className="p-2 text-slate-400 hover:text-slate-200 bg-slate-800/80 rounded-lg transition"
+            title={fullScreen ? "Minimizar ecrã" : "Ecrã inteiro"}
+          >
+            {fullScreen ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+          </button>
+          
+          <Link
+            href={`/musicas/${musica.id}/editar`}
+            className="p-2 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg transition flex items-center gap-1 text-xs font-semibold"
+          >
+            <Edit size={16} />
+            <span>Editar</span>
+          </Link>
+        </div>
+      </header>
+
+      {/* Conteúdo Principal */}
+      <div className="max-w-2xl mx-auto px-4 mt-2">
+        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3 mb-4 gap-2">
+          <div className="overflow-hidden">
+            <h2 className="text-xl font-bold text-amber-400 truncate">
+              {musica.titulo}
+            </h2>
+            <p className="text-sm text-slate-400 truncate">{musica.artista}</p>
+          </div>
+        </div>
+
+        <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800/80 shadow-inner overflow-x-auto">
+          {textoParaExibir ? (
+            <pre
+              style={{ fontSize: `${tamanhoFonte}px` }}
+              className="font-mono leading-relaxed whitespace-pre break-normal text-slate-200 font-medium transition-all duration-150"
+            >
+              {textoParaExibir}
+            </pre>
+          ) : (
+            <div className="text-center py-12 text-slate-500">
+              <Music size={32} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhuma cifra/letra cadastrada para esta música.</p>
+              <Link
+                href={`/musicas/${musica.id}/editar`}
+                className="mt-3 text-xs text-amber-400 font-semibold underline block"
+              >
+                + Adicionar Cifra
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Controlos Inferiores Fixos */}
+      <footer className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 p-3 z-40 space-y-2">
+        
+        {/* Barra Dividida em Duas Metades: Esquerda (Tom) e Direita (Tamanho da Fonte) */}
+        <div className="max-w-2xl mx-auto grid grid-cols-2 gap-2">
+          
+          {/* Metade Esquerda: Controlo de Tom */}
+          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Tom:</span>
+              <span className="text-xs font-black text-amber-400 font-mono px-1.5 py-0.5 bg-slate-900 rounded border border-slate-800 text-center shrink-0">
+                {tomAtual}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => setSemitonos((prev) => prev - 1)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Baixar Tom"
+              >
+                <Minus size={14} />
+              </button>
+
+              <button
+                onClick={() => setSemitonos(0)}
+                disabled={semitonos === 0}
+                className={`p-1.5 rounded-lg transition active:scale-95 ${
+                  semitonos === 0
+                    ? "bg-slate-900/50 text-slate-600 cursor-not-allowed"
+                    : "bg-slate-800 text-amber-400 hover:bg-slate-700"
+                }`}
+                title="Voltar ao tom original"
+              >
+                <RotateCcw size={14} />
+              </button>
+
+              <button
+                onClick={() => setSemitonos((prev) => prev + 1)}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Subir Tom"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+
+          {/* Metade Direita: Controlo de Tamanho de Fonte */}
+          <div className="flex items-center justify-between bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              <Type size={14} className="text-slate-400 shrink-0" />
+              <span className="text-xs font-mono font-bold text-amber-400 shrink-0">{tamanhoFonte}px</span>
+            </div>
+
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={() => setTamanhoFonte((prev) => Math.max(10, prev - 1))}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Diminuir Fonte"
+              >
+                <Minus size={14} />
+              </button>
+              <button
+                onClick={() => setTamanhoFonte((prev) => Math.min(32, prev + 1))}
+                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition active:scale-95"
+                title="Aumentar Fonte"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Controlo de Auto-scroll com Slider (Play) */}
+        <div className="max-w-2xl mx-auto bg-slate-950/80 px-3 py-2 rounded-xl border border-slate-800">
+          <div className="flex items-center justify-between gap-3">
+            <button
+              onClick={() => setIsScrolling(!isScrolling)}
+              className={`py-2 px-4 rounded-xl font-bold flex items-center justify-center gap-2 text-xs transition shrink-0 ${
+                isScrolling
+                  ? "bg-amber-500 text-slate-950 shadow-md animate-pulse"
+                  : "bg-slate-800 text-amber-400 hover:bg-slate-700"
+              }`}
+            >
+              {isScrolling ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" />}
+              <span>{isScrolling ? "A rolar" : "Play"}</span>
+            </button>
+
+            <div className="flex-1 flex flex-col justify-center px-1">
+              <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                <span>Lento</span>
+                <span className="text-amber-400 font-mono">Velocidade</span>
+                <span>Rápido</span>
+              </div>
+              <input
+                type="range"
+                min="0.003"
+                max="0.25"
+                step="0.002"
+                value={scrollSpeed}
+                onChange={(e) => setScrollSpeed(parseFloat(e.target.value))}
+                className="w-full accent-amber-400 bg-slate-800 h-2 rounded-lg cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
+      </footer>
+    </main>
+  );
+}
+</file>
+
 <file path="app/musicas/nova/page.tsx">
 "use client";
 
@@ -3221,14 +2915,16 @@ export default function NovaMusicaPage() {
 }
 </file>
 
-<file path="app/repertorios/[id]/selecionar-musicas/page.tsx">
+<file path="app/repertorios/[id]/page.tsx">
 "use client";
 
-import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, use, useRef } from "react";
 import Link from "next/link";
-import { ArrowLeft, Save, Check, Music } from "lucide-react";
-import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
+import { ArrowLeft, Plus, GripVertical, Trash2, Edit, Music, ChevronRight, Play } from "lucide-react";
+import {
+  removerMusicaDoRepertorioAction,
+  reordenarMusicasDoRepertorioAction,
+} from "./actions";
 
 interface Musica {
   id: string;
@@ -3237,18 +2933,28 @@ interface Musica {
   tomOriginal: string;
 }
 
-export default function SelecionarMusicasPage({
+interface Repertorio {
+  id: string;
+  titulo: string;
+  descricao: string;
+  musicasIds: string[];
+}
+
+export default function DetalhesRepertorioPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id: repertorioId } = use(params);
-  const router = useRouter();
 
-  const [musicasDisponiveis, setMusicasDisponiveis] = useState<Musica[]>([]);
-  const [musicasSelecionadasIds, setMusicasSelecionadasIds] = useState<string[]>([]);
+  const [repertorio, setRepertorio] = useState<Repertorio | null>(null);
+  const [musicas, setMusicas] = useState<Musica[]>([]);
   const [carregando, setCarregando] = useState(true);
-  const [salvando, setSalvando] = useState(false);
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [itemArrastado, setItemArrastado] = useState<number | null>(null);
 
   const projectId = "app-cifras-bcdce";
 
@@ -3257,13 +2963,27 @@ export default function SelecionarMusicasPage({
       try {
         setCarregando(true);
 
-        // 1. Carregar o repertório atual para saber quais músicas já estão selecionadas
-        const repertorio: any = await serviceGetRepertorioPorId(repertorioId);
-        if (repertorio && repertorio.musicasIds) {
-          setMusicasSelecionadasIds(repertorio.musicasIds);
-        }
+        const resRep = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`,
+          { cache: "no-store" }
+        );
 
-        // 2. Carregar todas as músicas cadastradas
+        if (!resRep.ok) return;
+
+        const docRep = await resRep.json();
+        const fRep = docRep.fields || {};
+        const musicasIds: string[] =
+          fRep.musicasIds?.arrayValue?.values?.map(
+            (v: any) => v.stringValue
+          ) || [];
+
+        setRepertorio({
+          id: repertorioId,
+          titulo: fRep.titulo?.stringValue || "Sem título",
+          descricao: fRep.descricao?.stringValue || "",
+          musicasIds,
+        });
+
         const resMusicas = await fetch(
           `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
           { cache: "no-store" }
@@ -3272,17 +2992,23 @@ export default function SelecionarMusicasPage({
         if (resMusicas.ok) {
           const dadosMusicas = await resMusicas.json();
           if (dadosMusicas.documents) {
-            const lista: Musica[] = dadosMusicas.documents.map((doc: any) => {
+            const mapaMusicas = new Map<string, Musica>();
+            dadosMusicas.documents.forEach((doc: any) => {
               const id = doc.name.split("/").pop();
               const f = doc.fields || {};
-              return {
+              mapaMusicas.set(id, {
                 id,
                 titulo: f.titulo?.stringValue || "Sem título",
                 artista: f.artista?.stringValue || "Artista desconhecido",
                 tomOriginal: f.tomOriginal?.stringValue || "C",
-              };
+              });
             });
-            setMusicasDisponiveis(lista);
+
+            const listaOrdenada = musicasIds
+              .map((id) => mapaMusicas.get(id))
+              .filter(Boolean) as Musica[];
+
+            setMusicas(listaOrdenada);
           }
         }
       } catch (erro) {
@@ -3295,33 +3021,66 @@ export default function SelecionarMusicasPage({
     carregarDados();
   }, [repertorioId]);
 
-  const toggleMusica = (musicaId: string) => {
-    if (musicasSelecionadasIds.includes(musicaId)) {
-      setMusicasSelecionadasIds(musicasSelecionadasIds.filter((id) => id !== musicaId));
-    } else {
-      setMusicasSelecionadasIds([...musicasSelecionadasIds, musicaId]);
-    }
+  const handleDragStart = (index: number) => {
+    dragItem.current = index;
+    setItemArrastado(index);
   };
 
-  const handleSalvar = async () => {
-    try {
-      setSalvando(true);
-      await serviceAtualizarRepertorio(repertorioId, {
-        musicasIds: musicasSelecionadasIds,
-      });
-      router.push(`/repertorios/${repertorioId}`);
-    } catch (erro: any) {
-      console.error("Erro ao atualizar músicas do repertório:", erro);
-      alert(erro.message || "Erro ao salvar músicas.");
-    } finally {
-      setSalvando(false);
+  const handleDragEnter = (index: number) => {
+    dragOverItem.current = index;
+  };
+
+  const handleDragEnd = async () => {
+    if (
+      dragItem.current !== null &&
+      dragOverItem.current !== null &&
+      dragItem.current !== dragOverItem.current
+    ) {
+      const novalist = [...musicas];
+      const itemMovido = novalist.splice(dragItem.current, 1)[0];
+      novalist.splice(dragOverItem.current, 0, itemMovido);
+
+      setMusicas(novalist);
+
+      const novosIds = novalist.map((m) => m.id);
+      setSalvandoOrdem(true);
+      try {
+        await reordenarMusicasDoRepertorioAction(repertorioId, novosIds);
+      } catch (err) {
+        console.error("Erro ao salvar ordem:", err);
+      } finally {
+        setSalvandoOrdem(false);
+      }
+    }
+
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setItemArrastado(null);
+  };
+
+  const handleRemoverMusica = async (musicaId: string, titulo: string) => {
+    if (confirm(`Remover "${titulo}" deste repertório?`)) {
+      const novasList = musicas.filter((m) => m.id !== musicaId);
+      setMusicas(novasList);
+      await removerMusicaDoRepertorioAction(repertorioId, musicaId);
     }
   };
 
   if (carregando) {
     return (
       <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
-        <p className="text-slate-400">A carregar músicas...</p>
+        <p className="text-slate-400">A carregar repertório...</p>
+      </main>
+    );
+  }
+
+  if (!repertorio) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
+        <p className="text-red-400">Repertório não encontrado.</p>
+        <Link href="/repertorios" className="text-amber-400 underline mt-4 block">
+          Voltar para Repertórios
+        </Link>
       </main>
     );
   }
@@ -3329,79 +3088,126 @@ export default function SelecionarMusicasPage({
   return (
     <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
       <div>
+        {/* Cabeçalho */}
         <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 overflow-hidden">
             <Link
-              href={`/repertorios/${repertorioId}`}
-              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+              href="/repertorios"
+              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition shrink-0"
             >
               <ArrowLeft size={20} />
             </Link>
-            <h1 className="text-lg font-bold text-amber-400">Gerir Músicas</h1>
+            <div className="overflow-hidden">
+              <h1 className="text-lg font-bold text-amber-400 leading-tight truncate">
+                {repertorio.titulo}
+              </h1>
+            </div>
           </div>
-          <span className="text-xs text-slate-400">
-            {musicasSelecionadasIds.length} selecionadas
-          </span>
+
+          {/* Botões do canto superior direito */}
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href={`/repertorios/${repertorio.id}/selecionar-musicas`}
+              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg flex items-center justify-center"
+              title="Gerir / Adicionar Músicas"
+            >
+              <Plus size={20} />
+            </Link>
+            
+          </div>
         </header>
 
-        <p className="text-xs text-slate-400 mb-4">
-          Selecione as músicas que deseja incluir neste repertório:
-        </p>
+        {repertorio.descricao && (
+          <p className="text-xs text-slate-400 bg-slate-800/40 p-3 rounded-xl border border-slate-800 mb-4">
+            {repertorio.descricao}
+          </p>
+        )}
 
-        {musicasDisponiveis.length === 0 ? (
-          <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
-            <Music size={36} className="mx-auto mb-2 opacity-40" />
-            <p className="text-sm">Nenhuma música cadastrada no sistema.</p>
+        {/* Lista de Músicas com Arraste */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Músicas ({musicas.length})
+            </p>
+            {salvandoOrdem && (
+              <span className="text-[10px] text-amber-400 animate-pulse font-mono">
+                A guardar nova ordem...
+              </span>
+            )}
           </div>
-        ) : (
-          <div className="space-y-2 pb-20">
-            {musicasDisponiveis.map((m) => {
-              const selecionada = musicasSelecionadasIds.includes(m.id);
-              return (
+
+          {musicas.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
+              <Music size={36} className="mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Nenhuma música neste repertório.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {musicas.map((m, index) => (
                 <div
                   key={m.id}
-                  onClick={() => toggleMusica(m.id)}
-                  className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition ${
-                    selecionada
-                      ? "bg-amber-500/10 border-amber-400/50 text-slate-100"
-                      : "bg-slate-800/60 border-slate-700/60 text-slate-300 hover:border-slate-600"
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragEnter={() => handleDragEnter(index)}
+                  onDragEnd={handleDragEnd}
+                  onDragOver={(e) => e.preventDefault()}
+                  className={`bg-slate-800 p-3.5 rounded-xl border flex items-center justify-between gap-2 transition cursor-grab active:cursor-grabbing ${
+                    itemArrastado === index
+                      ? "border-amber-400 opacity-40 bg-slate-700/50"
+                      : "border-slate-700/60 hover:border-slate-600"
                   }`}
                 >
-                  <div className="flex-1 overflow-hidden">
-                    <p className="font-semibold text-sm truncate">{m.titulo}</p>
+                  <div className="p-1 text-slate-500 hover:text-amber-400 shrink-0">
+                    <GripVertical size={18} />
+                  </div>
+
+                  <div className="flex-1 overflow-hidden pr-2">
+                    <Link
+                      href={`/musicas/${m.id}`}
+                      className="font-semibold text-slate-100 hover:text-amber-400 transition truncate block text-sm"
+                    >
+                      {index + 1}. {m.titulo}
+                    </Link>
                     <p className="text-xs text-slate-400 truncate">{m.artista}</p>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="bg-slate-800 text-amber-400 font-bold px-2 py-0.5 rounded text-xs border border-slate-700">
+                    <span className="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-bold px-2 py-0.5 rounded text-xs">
                       {m.tomOriginal}
                     </span>
-                    <div
-                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition ${
-                        selecionada
-                          ? "bg-amber-500 text-slate-950"
-                          : "border border-slate-600 bg-slate-800"
-                      }`}
+                    <button
+                      onClick={() => handleRemoverMusica(m.id, m.titulo)}
+                      className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
+                      title="Remover do Repertório"
                     >
-                      {selecionada && <Check size={14} strokeWidth={3} />}
-                    </div>
+                      <Trash2 size={16} />
+                    </button>
+                    <Link
+                      href={`/musicas/${m.id}`}
+                      className="p-1 text-slate-500 hover:text-slate-200 transition"
+                    >
+                      <ChevronRight size={18} />
+                    </Link>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
-      <div className="sticky bottom-4 pt-4 bg-slate-900/80 backdrop-blur">
-        <button
-          onClick={handleSalvar}
-          disabled={salvando}
-          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg"
+      {/* Botões de Ação Fixos */}
+      <div className="sticky bottom-4 pt-4 flex gap-2">
+        <Link
+          href={`/repertorios/${repertorio.id}/apresentacao`}
+          className={`flex-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 shadow-lg transition ${
+            musicas.length === 0 ? "opacity-50 pointer-events-none" : ""
+          }`}
         >
-          <Save size={18} />
-          {salvando ? "A guardar..." : "Salvar Seleção"}
-        </button>
+          <Play size={20} fill="currentColor" />
+          <span>Iniciar Show</span>
+        </Link>
+        
       </div>
     </main>
   );
@@ -3730,6 +3536,218 @@ export default function MusicasPage() {
             </div>
           )}
         </section>
+      </div>
+    </main>
+  );
+}
+</file>
+
+<file path="app/repertorios/[id]/selecionar-musicas/page.tsx">
+"use client";
+
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft, Save, Check, Music, Search } from "lucide-react";
+import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
+
+interface Musica {
+  id: string;
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+}
+
+export default function SelecionarMusicasPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: repertorioId } = use(params);
+  const router = useRouter();
+
+  const [musicasDisponiveis, setMusicasDisponiveis] = useState<Musica[]>([]);
+  const [musicasSelecionadasIds, setMusicasSelecionadasIds] = useState<string[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  
+  // Estado para controlar o que foi digitado na pesquisa
+  const [termoBusca, setTermoBusca] = useState("");
+
+  const projectId = "app-cifras-bcdce";
+
+  useEffect(() => {
+    async function carregarDados() {
+      try {
+        setCarregando(true);
+
+        // 1. Carregar o repertório atual para saber quais músicas já estão selecionadas
+        const repertorio: any = await serviceGetRepertorioPorId(repertorioId);
+        if (repertorio && repertorio.musicasIds) {
+          setMusicasSelecionadasIds(repertorio.musicasIds);
+        }
+
+        // 2. Carregar todas as músicas cadastradas
+        const resMusicas = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
+          { cache: "no-store" }
+        );
+
+        if (resMusicas.ok) {
+          const dadosMusicas = await resMusicas.json();
+          if (dadosMusicas.documents) {
+            const lista: Musica[] = dadosMusicas.documents.map((doc: any) => {
+              const id = doc.name.split("/").pop();
+              const f = doc.fields || {};
+              return {
+                id,
+                titulo: f.titulo?.stringValue || "Sem título",
+                artista: f.artista?.stringValue || "Artista desconhecido",
+                tomOriginal: f.tomOriginal?.stringValue || "C",
+              };
+            });
+            setMusicasDisponiveis(lista);
+          }
+        }
+      } catch (erro) {
+        console.error("Erro ao carregar dados:", erro);
+      } finally {
+        setCarregando(false);
+      }
+    }
+
+    carregarDados();
+  }, [repertorioId]);
+
+  const toggleMusica = (musicaId: string) => {
+    if (musicasSelecionadasIds.includes(musicaId)) {
+      setMusicasSelecionadasIds(musicasSelecionadasIds.filter((id) => id !== musicaId));
+    } else {
+      setMusicasSelecionadasIds([...musicasSelecionadasIds, musicaId]);
+    }
+  };
+
+  const handleSalvar = async () => {
+    try {
+      setSalvando(true);
+      await serviceAtualizarRepertorio(repertorioId, {
+        musicasIds: musicasSelecionadasIds,
+      });
+      router.push(`/repertorios/${repertorioId}`);
+    } catch (erro: any) {
+      console.error("Erro ao atualizar músicas do repertório:", erro);
+      alert(erro.message || "Erro ao salvar músicas.");
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  // Filtrando a lista de músicas com base no que o usuário digitar (título ou artista)
+  const musicasFiltradas = musicasDisponiveis.filter((m) =>
+    m.titulo.toLowerCase().includes(termoBusca.toLowerCase()) ||
+    m.artista.toLowerCase().includes(termoBusca.toLowerCase())
+  );
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-slate-400">A carregar músicas...</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
+      <div>
+        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/repertorios/${repertorioId}`}
+              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+            >
+              <ArrowLeft size={20} />
+            </Link>
+            <h1 className="text-lg font-bold text-amber-400">Gerir Músicas</h1>
+          </div>
+          <span className="text-xs text-slate-400">
+            {musicasSelecionadasIds.length} selecionadas
+          </span>
+        </header>
+
+        <p className="text-xs text-slate-400 mb-3">
+          Selecione as músicas que deseja incluir neste repertório:
+        </p>
+
+        {/* Campo de Pesquisa IDÊNTICO ao da página de músicas */}
+        <div className="relative mb-4">
+          <Search size={18} className="absolute left-3 top-3 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Pesquisar por título ou artista..."
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+          />
+        </div>
+
+        {musicasDisponiveis.length === 0 ? (
+          <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl">
+            <Music size={36} className="mx-auto mb-2 opacity-40" />
+            <p className="text-sm">Nenhuma música cadastrada no sistema.</p>
+          </div>
+        ) : musicasFiltradas.length === 0 ? (
+          <div className="text-center py-10 text-slate-500 border border-dashed border-slate-800 rounded-xl">
+            <p className="text-sm">Nenhuma música encontrada para "{termoBusca}".</p>
+          </div>
+        ) : (
+          <div className="space-y-2 pb-20">
+            {musicasFiltradas.map((m) => {
+              const selecionada = musicasSelecionadasIds.includes(m.id);
+              return (
+                <div
+                  key={m.id}
+                  onClick={() => toggleMusica(m.id)}
+                  className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition ${
+                    selecionada
+                      ? "bg-amber-500/10 border-amber-400/50 text-slate-100"
+                      : "bg-slate-800/60 border-slate-700/60 text-slate-300 hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex-1 overflow-hidden">
+                    <p className="font-semibold text-sm truncate">{m.titulo}</p>
+                    <p className="text-xs text-slate-400 truncate">{m.artista}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="bg-slate-800 text-amber-400 font-bold px-2 py-0.5 rounded text-xs border border-slate-700">
+                      {m.tomOriginal}
+                    </span>
+                    <div
+                      className={`w-6 h-6 rounded-lg flex items-center justify-center transition ${
+                        selecionada
+                          ? "bg-amber-500 text-slate-950"
+                          : "border border-slate-600 bg-slate-800"
+                      }`}
+                    >
+                      {selecionada && <Check size={14} strokeWidth={3} />}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="sticky bottom-4 pt-4 bg-slate-900/80 backdrop-blur">
+        <button
+          onClick={handleSalvar}
+          disabled={salvando}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl transition flex items-center justify-center gap-2 shadow-lg"
+        >
+          <Save size={18} />
+          {salvando ? "A guardar..." : "Salvar Seleção"}
+        </button>
       </div>
     </main>
   );

@@ -5,13 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
-import { 
-  signInWithEmailAndPassword, 
-  GoogleAuthProvider, 
-  signInWithPopup 
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 import AboutModal from "@/components/AboutModal";
+import { isAdmin } from "@/lib/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,7 +17,6 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [erroMsg, setErroMsg] = useState("");
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
@@ -29,7 +26,35 @@ export default function LoginPage() {
     setErroMsg("");
 
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Se for o admin principal, libera acesso direto
+      if (isAdmin(user)) {
+        router.push("/");
+        return;
+      }
+
+      // Verifica no Firestore se o utilizador está aprovado
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.aprovado !== true) {
+          await signOut(auth);
+          setErroMsg("A sua conta aguarda aprovação do administrador.");
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Se não existir registo no Firestore, bloqueia por segurança
+        await signOut(auth);
+        setErroMsg("Registo não encontrado ou pendente de aprovação.");
+        setLoading(false);
+        return;
+      }
+
       router.push("/");
     } catch (error: any) {
       console.error("Erro no login:", error);
@@ -42,22 +67,6 @@ export default function LoginPage() {
       }
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    setErroMsg("");
-
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      router.push("/");
-    } catch (error: any) {
-      console.error("Erro no login com Google:", error);
-      setErroMsg("Não foi possível autenticar com o Google. Tente novamente.");
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -79,9 +88,6 @@ export default function LoginPage() {
           <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
             Seus acordes, o seu ritmo
           </p>
-          {/* <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
-            Login
-          </h1> */}
         </div>
 
         {/* Mensagem de Erro, caso exista */}
@@ -90,44 +96,6 @@ export default function LoginPage() {
             {erroMsg}
           </div>
         )}
-
-        {/* Botão Google */}
-        {/* <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={googleLoading || loading}
-          className="w-full bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium py-3 rounded-xl transition flex items-center justify-center gap-3 text-sm shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {googleLoading ? (
-            <Loader2 size={18} className="animate-spin text-amber-400" />
-          ) : (
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#EA4335"
-                d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.8 5 12 5z"
-              />
-              <path
-                fill="#4285F4"
-                d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.3 14.7c-.2-.7-.3-1.5-.3-2.3s.1-1.6.3-2.3L1.6 7.2C.6 9.2 0 11.5 0 13.9s.6 4.7 1.6 6.7l3.7-2.9c-.2-.7-.3-1.5-.3-2.3z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.2 0-5.8-2.1-6.7-5.1L1.6 16c1.9 3.8 5.8 7 10.4 7z"
-              />
-            </svg>
-          )}
-          <span>Continuar com o Google</span>
-        </button>
-
-        <div className="flex items-center my-4">
-          <div className="flex-grow border-t border-slate-800"></div>
-          <span className="px-3 text-xs text-slate-500 uppercase tracking-widest">ou e-mail</span>
-          <div className="flex-grow border-t border-slate-800"></div>
-        </div> */}
 
         {/* Formulário Tradicional */}
         <form onSubmit={handleLogin} className="space-y-4">
@@ -182,7 +150,7 @@ export default function LoginPage() {
           {/* Botão Submeter */}
           <button
             type="submit"
-            disabled={loading || googleLoading}
+            disabled={loading}
             className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -201,14 +169,13 @@ export default function LoginPage() {
 
         {/* Rodapé / Ir para o Cadastro e Sobre */}
         <div className="text-center pt-2 space-y-3">
-          {/*<p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-400">
             Ainda não tens uma conta?{" "}
             <Link href="/login-cadastro" className="text-amber-400 font-semibold hover:underline">
               Criar conta
             </Link>
-          </p> */}
+          </p>
 
-          {/* Botão que abre a janela "Sobre" estilo Firefox */}
           <div className="pt-2 border-t border-slate-800/50 flex justify-center">
             <button 
               type="button"
@@ -222,7 +189,6 @@ export default function LoginPage() {
 
       </div>
 
-      {/* Modal Sobre Atribuído */}
       <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
     </main>
   );

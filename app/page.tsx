@@ -4,14 +4,16 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Music, FolderKanban, LogOut, Loader2 } from "lucide-react";
+import { Music, FolderKanban, LogOut, Loader2, ShieldCheck } from "lucide-react";
 import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { isAdmin } from "@/lib/auth";
 
 export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
+  const [userIsAdmin, setUserIsAdmin] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
@@ -19,6 +21,7 @@ export default function HomePage() {
         router.push("/login");
       } else {
         setUser(currentUser);
+        setUserIsAdmin(isAdmin(currentUser));
       }
       setLoadingAuth(false);
     });
@@ -42,7 +45,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
       <div>
-        {/* Barra superior com Utilizador e Sair */}
+        {/* Barra superior apenas com o Utilizador e Sair */}
         <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-900 text-xs text-slate-400">
           <span className="truncate max-w-[220px]">{user?.email}</span>
           <button
@@ -107,6 +110,26 @@ export default function HomePage() {
               </div>
             </div>
           </Link>
+
+          {/* Bloco do Painel Admin (Exclusivo para Administrador) */}
+          {userIsAdmin && (
+            <Link
+              href="/admin/usuarios"
+              className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-amber-500/40 hover:border-amber-400/80 hover:bg-slate-900 transition group shadow-lg"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-slate-950 transition shadow-sm">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg text-amber-400 group-hover:text-amber-300 transition">
+                    Painel Admin
+                  </h2>
+                  <p className="text-xs text-slate-400">Aprovar e gerir utilizadores</p>
+                </div>
+              </div>
+            </Link>
+          )}
         </nav>
       </div>
 
