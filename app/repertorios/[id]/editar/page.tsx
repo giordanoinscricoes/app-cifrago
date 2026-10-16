@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Save } from "lucide-react";
 import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
+import { auth } from "@/lib/firebase"; // <--- 1. Importar o auth
 
 export default function EditarRepertorioPage({
   params,
@@ -43,7 +44,15 @@ export default function EditarRepertorioPage({
 
     try {
       setSalvando(true);
-      await serviceAtualizarRepertorio(repertorioId, { titulo, descricao });
+      const user = auth.currentUser;
+
+      // 2. Enviar o criadoPor com o e-mail atual
+      await serviceAtualizarRepertorio(repertorioId, { 
+        titulo, 
+        descricao, 
+        criadoPor: user?.email ?? "" 
+      });
+
       router.push("/repertorios");
     } catch (erro: any) {
       console.error("Erro ao atualizar repertório:", erro);

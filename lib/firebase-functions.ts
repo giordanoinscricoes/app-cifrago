@@ -9,7 +9,7 @@ import {
   updateDoc 
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-import { getUserRole, getPermissions } from "@/lib/auth";
+import { getUserRole, getPermissions, isAdmin } from "@/lib/auth";
 
 /**
  * ==========================================
@@ -18,29 +18,40 @@ import { getUserRole, getPermissions } from "@/lib/auth";
  */
 
 /**
- * Retorna as músicas com base automática nas permissões do utilizador logado.
+ * Retorna as músicas permitidas para o utilizador logado (Próprias, Partilhadas ou Globais para Admin).
  */
 export async function serviceGetMusicas() {
   const currentUser = auth.currentUser;
   if (!currentUser) return [];
 
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
   const musicasRef = collection(db, "musicas");
-  let q;
+  
+  // Buscamos todas as músicas e aplicamos a segurança e filtros no código,
+  // garantindo que músicas partilhadas via 'compartilhadoCom' sejam incluídas.
+  const snapshot = await getDocs(query(musicasRef));
+  
+  const emailUser = currentUser.email?.toLowerCase().trim() || "";
+  const admin = isAdmin(currentUser);
 
-  if (permissions.canViewGlobalLibrary) {
-    q = query(musicasRef);
-  } else {
-    q = query(musicasRef, where("userId", "==", currentUser.uid));
-  }
+  const musicasPermitidas: any[] = [];
 
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  snapshot.docs.forEach(docSnap => {
+    const data = docSnap.data();
+    const criadoPor = (data.criadoPor || data.email || "").toLowerCase().trim();
+    const compartilhadoCom = (data.compartilhadoCom || []).map((e: string) => e.toLowerCase().trim());
+
+    const eDono = criadoPor === emailUser || data.userId === currentUser.uid;
+    const eCompartilhado = compartilhadoCom.includes(emailUser);
+
+    if (admin || eDono || eCompartilhado) {
+      musicasPermitidas.push({
+        id: docSnap.id,
+        ...data
+      });
+    }
+  });
+
+  return musicasPermitidas;
 }
 
 /**
@@ -71,29 +82,37 @@ export async function serviceDeletarMusica(idMusica: string, donoIdMusica: strin
  */
 
 /**
- * Retorna os repertórios com base automática nas permissões do utilizador logado.
+ * Retorna os repertórios permitidos para o utilizador logado (Próprios, Partilhados ou Globais para Admin).
  */
 export async function serviceGetRepertorios() {
   const currentUser = auth.currentUser;
   if (!currentUser) return [];
 
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
   const repertoriosRef = collection(db, "repertorios");
-  let q;
+  const snapshot = await getDocs(query(repertoriosRef));
+  
+  const emailUser = currentUser.email?.toLowerCase().trim() || "";
+  const admin = isAdmin(currentUser);
 
-  if (permissions.canViewGlobalLibrary) {
-    q = query(repertoriosRef);
-  } else {
-    q = query(repertoriosRef, where("userId", "==", currentUser.uid));
-  }
+  const repertoriosPermitidos: any[] = [];
 
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  snapshot.docs.forEach(docSnap => {
+    const data = docSnap.data();
+    const criadoPor = (data.criadoPor || data.email || "").toLowerCase().trim();
+    const compartilhadoCom = (data.compartilhadoCom || []).map((e: string) => e.toLowerCase().trim());
+
+    const eDono = criadoPor === emailUser || data.userId === currentUser.uid;
+    const eCompartilhado = compartilhadoCom.includes(emailUser);
+
+    if (admin || eDono || eCompartilhado) {
+      repertoriosPermitidos.push({
+        id: docSnap.id,
+        ...data
+      });
+    }
+  });
+
+  return repertoriosPermitidos;
 }
 
 /**
@@ -128,11 +147,11 @@ export async function serviceGetRepertorioPorId(idRepertorio: string) {
 }
 
 /**
- * Atualiza os dados de um repertório (título, descrição e/ou músicas).
+ * Atualiza os dados de um repertório (título, descrição, músicas e criadoPor).
  */
 export async function serviceAtualizarRepertorio(
   idRepertorio: string, 
-  dados: { titulo?: string; descricao?: string; musicasIds?: string[] }
+  dados: { titulo?: string; descricao?: string; musicasIds?: string[]; criadoPor?: string }
 ) {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new Error("Utilizador não autenticado.");
@@ -150,32 +169,16 @@ export async function serviceAtualizarRepertorio(
   if (dados.titulo !== undefined) dadosAtualizacao.titulo = dados.titulo;
   if (dados.descricao !== undefined) dadosAtualizacao.descricao = dados.descricao;
   if (dados.musicasIds !== undefined) dadosAtualizacao.musicasIds = dados.musicasIds;
+  
+  // Atualiza ou insere o criadoPor com base no utilizador atual ou no passado
+  dadosAtualizacao.criadoPor = dados.criadoPor || currentUser.email || "";
 
   await updateDoc(docRef, dadosAtualizacao);
 }
 
 /**
- * Retorna todas as músicas (global ou filtrada por utilizador, conforme permissão).
+ * Retorna todas as músicas permitidas.
  */
 export async function serviceGetTodasMusicas() {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return [];
-
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
-  const musicasRef = collection(db, "musicas");
-  let q;
-
-  if (permissions.canViewGlobalLibrary) {
-    q = query(musicasRef);
-  } else {
-    q = query(musicasRef, where("userId", "==", currentUser.uid));
-  }
-
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
+  return serviceGetMusicas();
 }

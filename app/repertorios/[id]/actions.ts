@@ -4,20 +4,23 @@ import { revalidatePath } from "next/cache";
 
 const projectId = "app-cifras-bcdce";
 
-// Editar dados básicos do repertório (título e descrição)
+// Editar dados básicos do repertório (título, descrição e criadoPor)
 export async function editarRepertorioAction(
   repertorioId: string,
   dados: {
     titulo: string;
     descricao: string;
+    criadoPor?: string; // <--- 1. Receber o criadoPor opcionalmente
   }
 ) {
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=descricao`;
+  // 2. Adicionar updateMask para o criadoPor
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=descricao&updateMask.fieldPaths=criadoPor`;
 
   const bodyData = {
     fields: {
       titulo: { stringValue: dados.titulo },
       descricao: { stringValue: dados.descricao },
+      criadoPor: { stringValue: dados.criadoPor || "" }, // <--- 3. Gravar o criadoPor no Firestore
     },
   };
 
