@@ -66,7 +66,7 @@ export default function NovaMusicaPage() {
         tomOriginal,
         cifra,
         userId: user ? user.uid : "",
-        criadoPor: user ? user.email : "", // <-- Adiciona o email do criador aqui
+        criadoPor: user?.email ?? "", // <-- Adiciona o email do criador aqui
       });
 
       if (resultado.sucesso) {
