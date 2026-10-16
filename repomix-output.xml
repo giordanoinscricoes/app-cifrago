@@ -41,6 +41,9 @@ The content is organized as follows:
 
 <directory_structure>
 app/
+  admin/
+    usuarios/
+      page.tsx
   login/
     page.tsx
   login-cadastro/
@@ -102,350 +105,227 @@ package.json
 postcss.config.mjs
 README.md
 tsconfig.json
+z - Backup 16102026.zip
 </directory_structure>
 
 <files>
 This section contains the contents of the repository's files.
 
-<file path="app/login-cadastro/page.tsx">
+<file path="app/admin/usuarios/page.tsx">
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
-import { 
-  createUserWithEmailAndPassword, 
-  GoogleAuthProvider, 
-  signInWithPopup 
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import Link from "next/link";
+import { ArrowLeft, ShieldCheck, User, Phone, FileText, Mail, ChevronDown, ChevronUp, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, getDocs } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { isAdmin } from "@/lib/auth";
 
-export default function RegistoPage() {
+interface UserProfile {
+  id: string;
+  nome: string;
+  cpf: string;
+  telefone: string;
+  email: string;
+  aprovado: boolean;
+  role: 'admin' | 'viewer' | 'private';
+}
+
+export default function AdminUsuariosPage() {
   const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [erroMsg, setErroMsg] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [utilizadores, setUtilizadores] = useState<UserProfile[]>([]);
+  const [expandidoId, setExpandidoId] = useState<string | null>(null);
 
-  const handleRegisto = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setErroMsg("");
-
-    if (password !== confirmPassword) {
-      setErroMsg("As senhas não coincidem. Verifique e tente novamente.");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      router.push("/");
-    } catch (error: any) {
-      console.error("Erro no registo:", error);
-      if (error.code === "auth/email-already-in-use") {
-        setErroMsg("Este e-mail já está associado a uma conta.");
-      } else if (error.code === "auth/weak-password") {
-        setErroMsg("A senha deve ter pelo menos 6 caracteres.");
-      } else if (error.code === "auth/invalid-email") {
-        setErroMsg("O formato do e-mail é inválido.");
-      } else {
-        setErroMsg("Ocorreu um erro ao criar a conta. Tente novamente.");
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser || !isAdmin(currentUser)) {
+        router.push("/");
+        return;
       }
-    } finally {
-      setLoading(false);
-    }
-  };
+      await carregarUtilizadores();
+    });
 
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    setErroMsg("");
+    return () => unsubscribe();
+  }, [router]);
 
+  const carregarUtilizadores = async () => {
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      router.push("/");
-    } catch (error: any) {
-      console.error("Erro no login com Google:", error);
-      setErroMsg("Não foi possível autenticar com o Google. Tente novamente.");
+      setCarregando(true);
+      const querySnapshot = await getDocs(collection(db, "users"));
+      const lista: UserProfile[] = [];
+
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data() as any;
+        lista.push({
+          id: docSnap.id,
+          nome: data.nome || data.email || "Sem nome",
+          cpf: data.cpf || "Não informado",
+          telefone: data.telefone || "Não informado",
+          email: data.email || "Sem e-mail",
+          aprovado: data.aprovado ?? false,
+          role: data.role || "private",
+        });
+      });
+
+      setUtilizadores(lista);
+    } catch (erro) {
+      console.error("Erro ao carregar utilizadores do Firestore:", erro);
     } finally {
-      setGoogleLoading(false);
+      setCarregando(false);
     }
   };
+
+  const alterarAprovacao = async (id: string, estadoAtual: boolean) => {
+    try {
+      const { doc: firestoreDoc, updateDoc } = await import("firebase/firestore");
+      const userRef = firestoreDoc(db, "users", id);
+      await updateDoc(userRef, { aprovado: !estadoAtual });
+
+      setUtilizadores((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, aprovado: !estadoAtual } : u))
+      );
+    } catch (erro) {
+      console.error("Erro ao atualizar aprovação:", erro);
+      alert("Erro ao alterar o estado de aprovação.");
+    }
+  };
+
+  const alterarRole = async (id: string, novoRole: 'admin' | 'viewer' | 'private') => {
+    try {
+      const { doc: firestoreDoc, updateDoc } = await import("firebase/firestore");
+      const userRef = firestoreDoc(db, "users", id);
+      await updateDoc(userRef, { role: novoRole });
+
+      setUtilizadores((prev) =>
+        prev.map((u) => (u.id === id ? { ...u, role: novoRole } : u))
+      );
+    } catch (erro) {
+      console.error("Erro ao atualizar papel do utilizador:", erro);
+      alert("Erro ao alterar o nível de acesso.");
+    }
+  };
+
+  const toggleExpandir = (id: string) => {
+    setExpandidoId(expandidoId === id ? null : id);
+  };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-400">
+        <Loader2 size={32} className="animate-spin" />
+      </main>
+    );
+  }
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-md border border-amber-500/20 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
-        
-        {/* Cabeçalho com o Logótipo do CifraGo */}
-        <div className="flex flex-col items-center py-2 border-b border-slate-800/80 pb-6">
-          <div className="relative w-28 h-24 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
-            <Image
-              src="/logo.png"
-              alt="Logo CifraGo"
-              fill
-              className="object-contain"
-              priority
-            />
-          </div>
-          <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
-            Seus acordes, o seu ritmo
-          </p>
-          <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
-            Crie sua Conta
-          </h1>
-        </div>
-
-        {/* Mensagem de Erro, caso exista */}
-        {erroMsg && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl text-center">
-            {erroMsg}
-          </div>
-        )}
-
-        {/* Botão Google */}
-        <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={googleLoading || loading}
-          className="w-full bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium py-3 rounded-xl transition flex items-center justify-center gap-3 text-sm shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {googleLoading ? (
-            <Loader2 size={18} className="animate-spin text-amber-400" />
-          ) : (
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#EA4335"
-                d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.8 5 12 5z"
-              />
-              <path
-                fill="#4285F4"
-                d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.3 14.7c-.2-.7-.3-1.5-.3-2.3s.1-1.6.3-2.3L1.6 7.2C.6 9.2 0 11.5 0 13.9s.6 4.7 1.6 6.7l3.7-2.9c-.2-.7-.3-1.5-.3-2.3z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.2 0-5.8-2.1-6.7-5.1L1.6 16c1.9 3.8 5.8 7 10.4 7z"
-              />
-            </svg>
-          )}
-          <span>Continuar com o Google</span>
-        </button>
-
-        <div className="flex items-center my-4">
-          <div className="flex-grow border-t border-slate-800"></div>
-          <span className="px-3 text-xs text-slate-500 uppercase tracking-widest">ou e-mail</span>
-          <div className="flex-grow border-t border-slate-800"></div>
-        </div>
-
-        {/* Formulário Tradicional */}
-        <form onSubmit={handleRegisto} className="space-y-4">
-          
-          {/* Campo E-mail */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              E-mail
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-                <Mail size={16} />
-              </span>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nome@exemplo.com"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
-              />
-            </div>
-          </div>
-
-          {/* Campo Senha */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Senha (mínimo 6 carateres)
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-                <Lock size={16} />
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          {/* Campo Confirmar Senha */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Confirmar Senha
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-                <Lock size={16} />
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
-              />
-            </div>
-          </div>
-
-          {/* Botão Submeter */}
-          <button
-            type="submit"
-            disabled={loading || googleLoading}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                <span>A criar conta...</span>
-              </>
-            ) : (
-              <>
-                <span>Registar</span>
-                <ArrowRight size={16} />
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* Rodapé / Voltar ao Login */}
-        <div className="text-center pt-2 border-t border-slate-800/80">
-          <p className="text-xs text-slate-400">
-            Já tens uma conta?{" "}
-            <Link href="/login" className="text-amber-400 font-semibold hover:underline">
-              Fazer login
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 max-w-2xl mx-auto flex flex-col justify-between">
+      <div>
+        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-6">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="p-2 bg-slate-900 rounded-full hover:bg-slate-800 text-slate-300 transition border border-slate-800"
+            >
+              <ArrowLeft size={20} />
             </Link>
-          </p>
-        </div>
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="text-amber-400" size={24} />
+              <h1 className="text-xl font-bold text-amber-400">Gestão de Utilizadores</h1>
+            </div>
+          </div>
+          <span className="text-xs text-slate-400 font-mono">
+            Total: {utilizadores.length}
+          </span>
+        </header>
 
+        <div className="space-y-3">
+          {utilizadores.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-2xl">
+              <p className="text-sm">Nenhum documento encontrado na coleção "users".</p>
+            </div>
+          ) : (
+            utilizadores.map((u) => {
+              const estaExpandido = expandidoId === u.id;
+
+              return (
+                <div
+                  key={u.id}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-4 transition shadow-md space-y-3"
+                >
+                  {/* Linha Superior: Nome do Utilizador e botão de expandir */}
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => toggleExpandir(u.id)}
+                      className="flex-1 flex items-center gap-2 text-left font-semibold text-slate-100 hover:text-amber-400 transition truncate"
+                    >
+                      <User size={16} className="text-amber-400 shrink-0" />
+                      <span className="truncate text-base">{u.nome}</span>
+                      {estaExpandido ? <ChevronUp size={16} className="text-slate-500 shrink-0" /> : <ChevronDown size={16} className="text-slate-500 shrink-0" />}
+                    </button>
+                  </div>
+
+                  {/* Linha Inferior: Botões de Nível e Aprovação alinhados abaixo do nome */}
+                  <div className="flex items-center gap-3 pt-1 border-t border-slate-800/60">
+                    <select
+                      value={u.role}
+                      onChange={(e) => alterarRole(u.id, e.target.value as any)}
+                      className="bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-xs text-amber-400 font-medium focus:outline-none focus:border-amber-400"
+                    >
+                      <option value="private">Private</option>
+                      <option value="viewer">Viewer</option>
+                      <option value="admin">Admin</option>
+                    </select>
+
+                    <button
+                      onClick={() => alterarAprovacao(u.id, u.aprovado)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 ${
+                        u.aprovado
+                          ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30"
+                          : "bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30"
+                      }`}
+                    >
+                      {u.aprovado ? (
+                        <>
+                          <CheckCircle2 size={14} />
+                          <span>Aprovado</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle size={14} />
+                          <span>Pendente</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Caixa Expansível com Detalhes */}
+                  {estaExpandido && (
+                    <div className="bg-slate-950/70 border border-slate-800/80 rounded-xl p-3.5 space-y-2 text-xs text-slate-300 animate-fade-in mt-2">
+                      <div className="flex items-center gap-2.5">
+                        <Mail size={14} className="text-amber-400 shrink-0" />
+                        <span className="font-mono text-slate-200">{u.email}</span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <FileText size={14} className="text-amber-400 shrink-0" />
+                        <span>CPF: <strong className="font-mono text-slate-200">{u.cpf}</strong></span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <Phone size={14} className="text-amber-400 shrink-0" />
+                        <span>Telefone: <strong className="font-mono text-slate-200">{u.telefone}</strong></span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </main>
   );
-}
-</file>
-
-<file path="app/musicas/[id]/actions.ts">
-"use server";
-
-import { revalidatePath } from "next/cache";
-
-const projectId = "app-cifras-bcdce";
-
-export async function editarMusicaAction(
-  musicaId: string,
-  dados: {
-    titulo: string;
-    artista: string;
-    tomOriginal: string;
-    cifra: string;
-  }
-) {
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=artista&updateMask.fieldPaths=tomOriginal&updateMask.fieldPaths=cifra`;
-
-  const bodyData = {
-    fields: {
-      titulo: { stringValue: dados.titulo },
-      artista: { stringValue: dados.artista },
-      tomOriginal: { stringValue: dados.tomOriginal },
-      cifra: { stringValue: dados.cifra },
-    },
-  };
-
-  try {
-    const resposta = await fetch(url, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyData),
-    });
-
-    if (!resposta.ok) {
-      return { sucesso: false, erro: "Erro ao atualizar a música no banco de dados." };
-    }
-
-    revalidatePath("/musicas");
-    return { sucesso: true };
-  } catch (erro: any) {
-    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
-  }
-}
-
-export async function excluirMusicaAction(musicaId: string) {
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`;
-
-  try {
-    const resposta = await fetch(url, {
-      method: "DELETE",
-    });
-
-    if (!resposta.ok) {
-      return { sucesso: false, erro: "Erro ao excluir a música." };
-    }
-
-    revalidatePath("/musicas");
-    return { sucesso: true };
-  } catch (erro: any) {
-    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
-  }
-}
-
-// --- FUNÇÃO BUSCAR MUSICA POR ID ACTION ---
-
-export async function buscarMusicaPorIdAction(musicaId: string) {
-  try {
-    const res = await fetch(
-      `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`,
-      { cache: "no-store" }
-    );
-
-    if (!res.ok) {
-      return { sucesso: false, erro: "Música não encontrada." };
-    }
-
-    const doc = await res.json();
-    const f = doc.fields || {};
-
-    return {
-      sucesso: true,
-      musica: {
-        id: musicaId,
-        titulo: f.titulo?.stringValue || "Sem título",
-        artista: f.artista?.stringValue || "Artista desconhecido",
-        tomOriginal: f.tomOriginal?.stringValue || "C",
-        cifra: f.cifra?.stringValue || f.conteudo?.stringValue || "",
-      },
-    };
-  } catch (erro: any) {
-    console.error("Erro ao buscar música no servidor:", erro);
-    return { sucesso: false, erro: "Erro de conexão ao carregar a música." };
-  }
 }
 </file>
 
@@ -478,243 +358,6 @@ export async function salvarOrdemMusicasAction(musicasOrdenadas: { id: string }[
     return { sucesso: true };
   } catch (erro: any) {
     console.error("Erro ao guardar ordem das músicas:", erro);
-    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
-  }
-}
-</file>
-
-<file path="app/repertorios/[id]/actions.ts">
-"use server";
-
-import { revalidatePath } from "next/cache";
-
-const projectId = "app-cifras-bcdce";
-
-// Editar dados básicos do repertório (título e descrição)
-export async function editarRepertorioAction(
-  repertorioId: string,
-  dados: {
-    titulo: string;
-    descricao: string;
-  }
-) {
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=descricao`;
-
-  const bodyData = {
-    fields: {
-      titulo: { stringValue: dados.titulo },
-      descricao: { stringValue: dados.descricao },
-    },
-  };
-
-  try {
-    const res = await fetch(url, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyData),
-    });
-
-    if (!res.ok) {
-      return { sucesso: false, erro: "Erro ao atualizar repertório." };
-    }
-
-    revalidatePath("/repertorios");
-    revalidatePath(`/repertorios/${repertorioId}`);
-    return { sucesso: true };
-  } catch (erro: any) {
-    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
-  }
-}
-
-// Excluir repertório
-export async function excluirRepertorioAction(repertorioId: string) {
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
-
-  try {
-    const res = await fetch(url, { method: "DELETE" });
-
-    if (!res.ok) {
-      return { sucesso: false, erro: "Erro ao excluir repertório." };
-    }
-
-    revalidatePath("/repertorios");
-    return { sucesso: true };
-  } catch (erro: any) {
-    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
-  }
-}
-
-// Substituir/Atualizar toda a lista de IDs de músicas do repertório
-export async function salvarMusicasDoRepertorioAction(
-  repertorioId: string,
-  novosMusicasIds: string[]
-) {
-  const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
-
-  const bodyData = {
-    fields: {
-      musicasIds: {
-        arrayValue: {
-          values: novosMusicasIds.map((id) => ({ stringValue: id })),
-        },
-      },
-    },
-  };
-
-  try {
-    const resPatch = await fetch(urlPatch, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyData),
-    });
-
-    if (!resPatch.ok) {
-      return { sucesso: false, erro: "Erro ao atualizar músicas no banco." };
-    }
-
-    revalidatePath(`/repertorios/${repertorioId}`);
-    revalidatePath("/repertorios");
-    return { sucesso: true };
-  } catch (erro: any) {
-    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
-  }
-}
-
-// Adicionar uma única música
-export async function adicionarMusicaAoRepertorioAction(
-  repertorioId: string,
-  musicaId: string
-) {
-  const urlGet = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
-
-  try {
-    const res = await fetch(urlGet, { cache: "no-store" });
-    if (!res.ok) return { sucesso: false, erro: "Repertório não encontrado." };
-
-    const doc = await res.json();
-    const fields = doc.fields || {};
-
-    const musicasAtuais: string[] =
-      fields.musicasIds?.arrayValue?.values?.map(
-        (v: any) => v.stringValue
-      ) || [];
-
-    if (musicasAtuais.includes(musicaId)) {
-      return { sucesso: false, erro: "Música já adicionada a este repertório." };
-    }
-
-    const novasMusicas = [...musicasAtuais, musicaId];
-
-    const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
-
-    const bodyData = {
-      fields: {
-        musicasIds: {
-          arrayValue: {
-            values: novasMusicas.map((id) => ({ stringValue: id })),
-          },
-        },
-      },
-    };
-
-    const resPatch = await fetch(urlPatch, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyData),
-    });
-
-    if (!resPatch.ok) {
-      return { sucesso: false, erro: "Erro ao atualizar repertório no servidor." };
-    }
-
-    revalidatePath(`/repertorios/${repertorioId}`);
-    return { sucesso: true };
-  } catch (erro: any) {
-    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
-  }
-}
-
-// Remover uma música do repertório
-export async function removerMusicaDoRepertorioAction(
-  repertorioId: string,
-  musicaId: string
-) {
-  const urlGet = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
-
-  try {
-    const res = await fetch(urlGet, { cache: "no-store" });
-    if (!res.ok) return { sucesso: false, erro: "Repertório não encontrado." };
-
-    const doc = await res.json();
-    const fields = doc.fields || {};
-
-    const musicasAtuais: string[] =
-      fields.musicasIds?.arrayValue?.values?.map(
-        (v: any) => v.stringValue
-      ) || [];
-
-    const novasMusicas = musicasAtuais.filter((id) => id !== musicaId);
-
-    const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
-
-    const bodyData = {
-      fields: {
-        musicasIds: {
-          arrayValue: {
-            values: novasMusicas.map((id) => ({ stringValue: id })),
-          },
-        },
-      },
-    };
-
-    const resPatch = await fetch(urlPatch, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyData),
-    });
-
-    if (!resPatch.ok) {
-      return { sucesso: false, erro: "Erro ao atualizar repertório." };
-    }
-
-    revalidatePath(`/repertorios/${repertorioId}`);
-    return { sucesso: true };
-  } catch (erro: any) {
-    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
-  }
-}
-
-// Reordenar músicas do repertório
-export async function reordenarMusicasDoRepertorioAction(
-  repertorioId: string,
-  novosMusicasIds: string[]
-) {
-  const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
-
-  const bodyData = {
-    fields: {
-      musicasIds: {
-        arrayValue: {
-          values: novosMusicasIds.map((id) => ({ stringValue: id })),
-        },
-      },
-    },
-  };
-
-  try {
-    const resPatch = await fetch(urlPatch, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyData),
-    });
-
-    if (!resPatch.ok) {
-      return { sucesso: false, erro: "Erro ao reordenar músicas no banco." };
-    }
-
-    revalidatePath(`/repertorios/${repertorioId}`);
-    return { sucesso: true };
-  } catch (erro: any) {
     return { sucesso: false, erro: erro?.message || "Erro de conexão." };
   }
 }
@@ -1131,39 +774,6 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 </file>
 
-<file path="package.json">
-{
-  "name": "app-cifras",
-  "version": "0.1.0",
-  "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@hello-pangea/dnd": "^18.0.1",
-    "firebase": "^12.19.0",
-    "firebase-admin": "^14.4.0",
-    "lucide-react": "^1.47.0",
-    "next": "16.3.5",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.3.5",
-    "tailwindcss": "^4",
-    "typescript": "^5"
-  }
-}
-</file>
-
 <file path="postcss.config.mjs">
 const config = {
   plugins: {
@@ -1250,371 +860,604 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 }
 </file>
 
-<file path="app/musicas/[id]/editar/page.tsx">
+<file path="app/login-cadastro/page.tsx">
 "use client";
 
-import { useState, useEffect, use, useRef } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
-import { editarMusicaAction } from "../actions";
+import { Lock, Mail, User, Phone, FileText, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
-export default function EditarMusicaPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id: musicaId } = use(params);
+export default function RegistoPage() {
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [nome, setNome] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [telefone, setTelefone] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [erroMsg, setErroMsg] = useState("");
 
-  const [titulo, setTitulo] = useState("");
-  const [artista, setArtista] = useState("");
-  const [tomOriginal, setTomOriginal] = useState("C");
-  const [cifra, setCifra] = useState("");
-
-  const [carregando, setCarregando] = useState(true);
-  const [salvando, setSalvando] = useState(false);
-  const [emTelaCheia, setEmTelaCheia] = useState(false);
-
-  const containerCifraRef = useRef<HTMLDivElement>(null);
-  const projectId = "app-cifras-bcdce";
-
-  useEffect(() => {
-    async function carregarMusica() {
-      try {
-        const res = await fetch(
-          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`,
-          { cache: "no-store" }
-        );
-
-        if (res.ok) {
-          const doc = await res.json();
-          const f = doc.fields || {};
-          setTitulo(f.titulo?.stringValue || "");
-          setArtista(f.artista?.stringValue || "");
-          setTomOriginal(f.tomOriginal?.stringValue || "C");
-          setCifra(f.cifra?.stringValue || "");
-        }
-      } catch (e) {
-        console.error("Erro ao carregar música:", e);
-      } finally {
-        setCarregando(false);
-      }
-    }
-    carregarMusica();
-  }, [musicaId]);
-
-  const alternarTelaCheia = () => {
-    if (!document.fullscreenElement && containerCifraRef.current) {
-      containerCifraRef.current.requestFullscreen().catch((err) => {
-        console.error("Erro ao tentar entrar em tela cheia:", err);
-      });
-      setEmTelaCheia(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
-      setEmTelaCheia(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleRegisto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!titulo || !artista) {
-      alert("Por favor, preencha o título e o artista.");
+    setLoading(true);
+    setErroMsg("");
+
+    if (password !== confirmPassword) {
+      setErroMsg("As senhas não coincidem. Verifique e tente novamente.");
+      setLoading(false);
       return;
     }
 
-    setSalvando(true);
-    const res = await editarMusicaAction(musicaId, {
-      titulo,
-      artista,
-      tomOriginal,
-      cifra,
-    });
+    try {
+      // 1. Cria o utilizador no Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-    if (res.sucesso) {
-      router.push("/musicas");
-    } else {
-      alert(res.erro || "Erro ao salvar alterações.");
-      setSalvando(false);
+      // 2. Cria o documento correspondente no Firestore com os dados e aprovado: false
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        nome: nome,
+        cpf: cpf,
+        telefone: telefone,
+        email: email,
+        aprovado: false,
+        role: "private",
+        criado_em: new Date().toISOString(),
+      });
+
+      alert("Conta criada com sucesso! Aguarde a aprovação do administrador para aceder à aplicação.");
+      router.push("/login");
+    } catch (error: any) {
+      console.error("Erro no registo:", error);
+      if (error.code === "auth/email-already-in-use") {
+        setErroMsg("Este e-mail já está associado a uma conta.");
+      } else if (error.code === "auth/weak-password") {
+        setErroMsg("A senha deve ter pelo menos 6 caracteres.");
+      } else if (error.code === "auth/invalid-email") {
+        setErroMsg("O formato do e-mail é inválido.");
+      } else {
+        setErroMsg("Ocorreu um erro ao criar a conta. Tente novamente.");
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  if (carregando) {
-    return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
-        <p className="text-slate-400">A carregar música...</p>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
-      <div>
-        <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
-          <Link
-            href="/musicas"
-            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
-          >
-            <ArrowLeft size={20} />
-          </Link>
-          <h1 className="text-xl font-bold text-amber-400">Editar Música</h1>
-        </header>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Título da Música *
-            </label>
-            <input
-              type="text"
-              value={titulo}
-              onChange={(e) => setTitulo(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
-              required
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-md border border-amber-500/20 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
+        
+        <div className="flex flex-col items-center py-2 border-b border-slate-800/80 pb-6">
+          <div className="relative w-28 h-24 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
+            <Image
+              src="/logo.png"
+              alt="Logo CifraGo"
+              fill
+              className="object-contain"
+              priority
             />
           </div>
+          <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
+            Seus acordes, o seu ritmo
+          </p>
+          <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
+            Crie sua Conta
+          </h1>
+        </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Artista / Banda *
+        {erroMsg && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl text-center">
+            {erroMsg}
+          </div>
+        )}
+
+        <form onSubmit={handleRegisto} className="space-y-4">
+          
+          {/* Nome Completo */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Nome Completo
             </label>
-            <input
-              type="text"
-              value={artista}
-              onChange={(e) => setArtista(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
-              required
-            />
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <User size={16} />
+              </span>
+              <input
+                type="text"
+                required
+                value={nome}
+                onChange={(e) => setNome(e.target.value)}
+                placeholder="Seu nome completo"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Tom Original
+          {/* CPF */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              CPF
             </label>
-            <select
-              value={tomOriginal}
-              onChange={(e) => setTomOriginal(e.target.value)}
-              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
-            >
-              {[
-                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
-                "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
-              ].map((tom) => (
-                <option key={tom} value={tom}>
-                  {tom}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <FileText size={16} />
+              </span>
+              <input
+                type="text"
+                required
+                value={cpf}
+                onChange={(e) => setCpf(e.target.value)}
+                placeholder="000.000.000-00"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
           </div>
 
-          {/* Bloco da Cifra com suporte a expansão / ecrã cheio */}
-          <div ref={containerCifraRef} className={`${emTelaCheia ? 'bg-slate-900 p-4 h-screen flex flex-col' : ''}`}>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-300">
-                Cifra / Letra
-              </label>
+          {/* Telefone */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Telefone de Contato
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Phone size={16} />
+              </span>
+              <input
+                type="text"
+                required
+                value={telefone}
+                onChange={(e) => setTelefone(e.target.value)}
+                placeholder="(00) 00000-0000"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
+          </div>
+
+          {/* E-mail */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              E-mail
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Mail size={16} />
+              </span>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nome@exemplo.com"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
+          </div>
+
+          {/* Senha */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Senha (mínimo 6 carateres)
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Lock size={16} />
+              </span>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
               <button
                 type="button"
-                onClick={alternarTelaCheia}
-                className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition"
-                title="Expandir campo de texto"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition"
               >
-                {emTelaCheia ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-                <span>{emTelaCheia ? "Normal" : "Expandir"}</span>
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            <textarea
-              value={cifra}
-              onChange={(e) => setCifra(e.target.value)}
-              rows={8}
-              placeholder="Cole aqui a cifra ou letra da música..."
-              className={`w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-amber-400 transition ${
-                emTelaCheia ? "flex-1 h-[80vh]" : ""
-              }`}
-            />
+          </div>
+
+          {/* Confirmar Senha */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Confirmar Senha
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Lock size={16} />
+              </span>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
           </div>
 
           <button
             type="submit"
-            disabled={salvando}
-            className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-700 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 transition mt-6"
+            disabled={loading}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Save size={20} />
-            {salvando ? "A guardar..." : "Salvar Alterações"}
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>A criar conta...</span>
+              </>
+            ) : (
+              <>
+                <span>Registar</span>
+                <ArrowRight size={16} />
+              </>
+            )}
           </button>
         </form>
+
+        <div className="text-center pt-2 border-t border-slate-800/80">
+          <p className="text-xs text-slate-400">
+            Já tens uma conta?{" "}
+            <Link href="/login" className="text-amber-400 font-semibold hover:underline">
+              Fazer login
+            </Link>
+          </p>
+        </div>
+
       </div>
     </main>
   );
 }
 </file>
 
-<file path="app/musicas/nova/actions.ts">
+<file path="app/musicas/[id]/actions.ts">
 "use server";
 
-export async function criarMusicaAction(data: {
-  titulo: string;
-  artista: string;
-  tomOriginal: string;
-  cifra: string;
-  userId: string; // <--- 1. Receber o userId
-}) {
-  const projectId = "app-cifras-bcdce";
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`;
+import { revalidatePath } from "next/cache";
+
+const projectId = "app-cifras-bcdce";
+
+export async function editarMusicaAction(
+  musicaId: string,
+  dados: {
+    titulo: string;
+    artista: string;
+    tomOriginal: string;
+    cifra: string;
+    criadoPor?: string; // <--- 1. Receber o criadoPor opcionalmente
+  }
+) {
+  // 2. Adicionar updateMask.fieldPaths=criadoPor para atualizar/inserir o campo no Firestore
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=artista&updateMask.fieldPaths=tomOriginal&updateMask.fieldPaths=cifra&updateMask.fieldPaths=criadoPor`;
 
   const bodyData = {
     fields: {
-      titulo: { stringValue: data.titulo },
-      artista: { stringValue: data.artista },
-      tomOriginal: { stringValue: data.tomOriginal },
-      tomAtual: { stringValue: data.tomOriginal },
-      cifra: { stringValue: data.cifra },
-      userId: { stringValue: data.userId || "" }, // <--- 2. Gravar o userId no Firestore
-      criado_em: { timestampValue: new Date().toISOString() },
+      titulo: { stringValue: dados.titulo },
+      artista: { stringValue: dados.artista },
+      tomOriginal: { stringValue: dados.tomOriginal },
+      cifra: { stringValue: dados.cifra },
+      criadoPor: { stringValue: dados.criadoPor || "" }, // <--- 3. Gravar o criadoPor
     },
   };
 
   try {
     const resposta = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(bodyData),
     });
 
     if (!resposta.ok) {
-      const erroJson = await resposta.json();
-      console.error("Erro na REST API do Firestore:", erroJson);
-      return {
-        sucesso: false,
-        erro: erroJson.error?.message || "Erro ao salvar no Firestore.",
-      };
+      return { sucesso: false, erro: "Erro ao atualizar a música no banco de dados." };
     }
 
+    revalidatePath("/musicas");
     return { sucesso: true };
   } catch (erro: any) {
-    console.error("Erro de conexão na Server Action:", erro);
-    return { sucesso: false, erro: erro?.message || "Erro de rede ao salvar." };
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+export async function excluirMusicaAction(musicaId: string) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`;
+
+  try {
+    const resposta = await fetch(url, {
+      method: "DELETE",
+    });
+
+    if (!resposta.ok) {
+      return { sucesso: false, erro: "Erro ao excluir a música." };
+    }
+
+    revalidatePath("/musicas");
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// --- FUNÇÃO BUSCAR MUSICA POR ID ACTION ---
+
+export async function buscarMusicaPorIdAction(musicaId: string) {
+  try {
+    const res = await fetch(
+      `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`,
+      { cache: "no-store" }
+    );
+
+    if (!res.ok) {
+      return { sucesso: false, erro: "Música não encontrada." };
+    }
+
+    const doc = await res.json();
+    const f = doc.fields || {};
+
+    return {
+      sucesso: true,
+      musica: {
+        id: musicaId,
+        titulo: f.titulo?.stringValue || "Sem título",
+        artista: f.artista?.stringValue || "Artista desconhecido",
+        tomOriginal: f.tomOriginal?.stringValue || "C",
+        cifra: f.cifra?.stringValue || f.conteudo?.stringValue || "",
+      },
+    };
+  } catch (erro: any) {
+    console.error("Erro ao buscar música no servidor:", erro);
+    return { sucesso: false, erro: "Erro de conexão ao carregar a música." };
   }
 }
 </file>
 
-<file path="app/repertorios/[id]/editar/page.tsx">
-"use client";
+<file path="app/repertorios/[id]/actions.ts">
+"use server";
 
-import { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import { ArrowLeft, Save } from "lucide-react";
-import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
+import { revalidatePath } from "next/cache";
 
-export default function EditarRepertorioPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id: repertorioId } = use(params);
-  const router = useRouter();
+const projectId = "app-cifras-bcdce";
 
-  const [titulo, setTitulo] = useState("");
-  const [descricao, setDescricao] = useState("");
-  const [carregando, setCarregando] = useState(true);
-  const [salvando, setSalvando] = useState(false);
+// Editar dados básicos do repertório (título, descrição e criadoPor)
+export async function editarRepertorioAction(
+  repertorioId: string,
+  dados: {
+    titulo: string;
+    descricao: string;
+    criadoPor?: string; // <--- 1. Receber o criadoPor opcionalmente
+  }
+) {
+  // 2. Adicionar updateMask para o criadoPor
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=descricao&updateMask.fieldPaths=criadoPor`;
 
-  useEffect(() => {
-    async function carregarRepertorio() {
-      try {
-        const repertorio: any = await serviceGetRepertorioPorId(repertorioId);
-        if (repertorio) {
-          setTitulo(repertorio.titulo || "");
-          setDescricao(repertorio.descricao || "");
-        }
-      } catch (erro) {
-        console.error("Erro ao carregar repertório:", erro);
-      } finally {
-        setCarregando(false);
-      }
-    }
-
-    carregarRepertorio();
-  }, [repertorioId]);
-
-  const handleSalvar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!titulo.trim()) return;
-
-    try {
-      setSalvando(true);
-      await serviceAtualizarRepertorio(repertorioId, { titulo, descricao });
-      router.push("/repertorios");
-    } catch (erro: any) {
-      console.error("Erro ao atualizar repertório:", erro);
-      alert(erro.message || "Erro ao atualizar repertório.");
-    } finally {
-      setSalvando(false);
-    }
+  const bodyData = {
+    fields: {
+      titulo: { stringValue: dados.titulo },
+      descricao: { stringValue: dados.descricao },
+      criadoPor: { stringValue: dados.criadoPor || "" }, // <--- 3. Gravar o criadoPor no Firestore
+    },
   };
 
-  if (carregando) {
-    return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
-        <p className="text-slate-400">A carregar repertório...</p>
-      </main>
-    );
+  try {
+    const res = await fetch(url, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!res.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar repertório." };
+    }
+
+    revalidatePath("/repertorios");
+    revalidatePath(`/repertorios/${repertorioId}`);
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
   }
+}
 
-  return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
-      <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
-        <Link
-          href="/repertorios"
-          className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
-        >
-          <ArrowLeft size={20} />
-        </Link>
-        <h1 className="text-xl font-bold text-amber-400">Editar Repertório</h1>
-      </header>
+// Excluir repertório
+export async function excluirRepertorioAction(repertorioId: string) {
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
 
-      <form onSubmit={handleSalvar} className="space-y-4">
-        <div>
-          <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">
-            Título do Repertório *
-          </label>
-          <input
-            type="text"
-            required
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400"
-          />
-        </div>
+  try {
+    const res = await fetch(url, { method: "DELETE" });
 
-        <div>
-          <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">
-            Descrição (Opcional)
-          </label>
-          <textarea
-            rows={3}
-            value={descricao}
-            onChange={(e) => setDescricao(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 resize-none"
-          />
-        </div>
+    if (!res.ok) {
+      return { sucesso: false, erro: "Erro ao excluir repertório." };
+    }
 
-        <button
-          type="submit"
-          disabled={salvando}
-          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl transition flex items-center justify-center gap-2 mt-6 shadow-lg"
-        >
-          <Save size={18} />
-          {salvando ? "A guardar..." : "Salvar Alterações"}
-        </button>
-      </form>
-    </main>
-  );
+    revalidatePath("/repertorios");
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Substituir/Atualizar toda a lista de IDs de músicas do repertório
+export async function salvarMusicasDoRepertorioAction(
+  repertorioId: string,
+  novosMusicasIds: string[]
+) {
+  const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
+
+  const bodyData = {
+    fields: {
+      musicasIds: {
+        arrayValue: {
+          values: novosMusicasIds.map((id) => ({ stringValue: id })),
+        },
+      },
+    },
+  };
+
+  try {
+    const resPatch = await fetch(urlPatch, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resPatch.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar músicas no banco." };
+    }
+
+    revalidatePath(`/repertorios/${repertorioId}`);
+    revalidatePath("/repertorios");
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Adicionar uma única música
+export async function adicionarMusicaAoRepertorioAction(
+  repertorioId: string,
+  musicaId: string
+) {
+  const urlGet = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
+
+  try {
+    const res = await fetch(urlGet, { cache: "no-store" });
+    if (!res.ok) return { sucesso: false, erro: "Repertório não encontrado." };
+
+    const doc = await res.json();
+    const fields = doc.fields || {};
+
+    const musicasAtuais: string[] =
+      fields.musicasIds?.arrayValue?.values?.map(
+        (v: any) => v.stringValue
+      ) || [];
+
+    if (musicasAtuais.includes(musicaId)) {
+      return { sucesso: false, erro: "Música já adicionada a este repertório." };
+    }
+
+    const novasMusicas = [...musicasAtuais, musicaId];
+
+    const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
+
+    const bodyData = {
+      fields: {
+        musicasIds: {
+          arrayValue: {
+            values: novasMusicas.map((id) => ({ stringValue: id })),
+          },
+        },
+      },
+    };
+
+    const resPatch = await fetch(urlPatch, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resPatch.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar repertório no servidor." };
+    }
+
+    revalidatePath(`/repertorios/${repertorioId}`);
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Remover uma música do repertório
+export async function removerMusicaDoRepertorioAction(
+  repertorioId: string,
+  musicaId: string
+) {
+  const urlGet = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}`;
+
+  try {
+    const res = await fetch(urlGet, { cache: "no-store" });
+    if (!res.ok) return { sucesso: false, erro: "Repertório não encontrado." };
+
+    const doc = await res.json();
+    const fields = doc.fields || {};
+
+    const musicasAtuais: string[] =
+      fields.musicasIds?.arrayValue?.values?.map(
+        (v: any) => v.stringValue
+      ) || [];
+
+    const novasMusicas = musicasAtuais.filter((id) => id !== musicaId);
+
+    const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
+
+    const bodyData = {
+      fields: {
+        musicasIds: {
+          arrayValue: {
+            values: novasMusicas.map((id) => ({ stringValue: id })),
+          },
+        },
+      },
+    };
+
+    const resPatch = await fetch(urlPatch, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resPatch.ok) {
+      return { sucesso: false, erro: "Erro ao atualizar repertório." };
+    }
+
+    revalidatePath(`/repertorios/${repertorioId}`);
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
+}
+
+// Reordenar músicas do repertório
+export async function reordenarMusicasDoRepertorioAction(
+  repertorioId: string,
+  novosMusicasIds: string[]
+) {
+  const urlPatch = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/repertorios/${repertorioId}?updateMask.fieldPaths=musicasIds`;
+
+  const bodyData = {
+    fields: {
+      musicasIds: {
+        arrayValue: {
+          values: novosMusicasIds.map((id) => ({ stringValue: id })),
+        },
+      },
+    },
+  };
+
+  try {
+    const resPatch = await fetch(urlPatch, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resPatch.ok) {
+      return { sucesso: false, erro: "Erro ao reordenar músicas no banco." };
+    }
+
+    revalidatePath(`/repertorios/${repertorioId}`);
+    return { sucesso: true };
+  } catch (erro: any) {
+    return { sucesso: false, erro: erro?.message || "Erro de conexão." };
+  }
 }
 </file>
 
@@ -1773,127 +1616,6 @@ export default function NovoRepertorioPage() {
 }
 </file>
 
-<file path="app/page.tsx">
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
-import Image from "next/image";
-import { Music, FolderKanban, LogOut, Loader2 } from "lucide-react";
-import { onAuthStateChanged, signOut, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-
-export default function HomePage() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      if (!currentUser) {
-        router.push("/login");
-      } else {
-        setUser(currentUser);
-      }
-      setLoadingAuth(false);
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  const handleLogout = async () => {
-    await signOut(auth);
-    router.push("/login");
-  };
-
-  if (loadingAuth) {
-    return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-400">
-        <Loader2 size={32} className="animate-spin" />
-      </div>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
-      <div>
-        {/* Barra superior com Utilizador e Sair */}
-        <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-900 text-xs text-slate-400">
-          <span className="truncate max-w-[220px]">{user?.email}</span>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1 text-slate-400 hover:text-red-400 transition"
-            title="Terminar Sessão"
-          >
-            <LogOut size={14} />
-            <span>Sair</span>
-          </button>
-        </div>
-
-        {/* Cabeçalho com Logo CifraGo Centralizada */}
-        <header className="flex flex-col items-center py-4 border-b border-slate-800/80 mb-6">
-          <div className="relative w-32 h-28 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
-            <Image
-              src="/logo.png"
-              alt="Logo CifraGo"
-              fill
-              className="object-contain"
-              priority
-            />
-          </div>
-
-          <p className="text-center text-xs text-amber-400/90 font-medium tracking-wide italic">
-            Seus acordes, o seu ritmo
-          </p>
-        </header>
-
-        {/* Navegação Principal */}
-        <nav className="space-y-4">
-          <Link
-            href="/musicas"
-            className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-amber-500/20 hover:border-amber-400/60 hover:bg-slate-900 transition group shadow-lg"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-slate-950 transition shadow-sm">
-                <Music size={24} />
-              </div>
-              <div>
-                <h2 className="font-bold text-lg text-slate-100 group-hover:text-amber-400 transition">
-                  Músicas
-                </h2>
-                <p className="text-xs text-slate-400">Ver e gerir catálogo de cifras</p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            href="/repertorios"
-            className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-amber-500/20 hover:border-amber-400/60 hover:bg-slate-900 transition group shadow-lg"
-          >
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-slate-950 transition shadow-sm">
-                <FolderKanban size={24} />
-              </div>
-              <div>
-                <h2 className="font-bold text-lg text-slate-100 group-hover:text-amber-400 transition">
-                  Repertórios
-                </h2>
-                <p className="text-xs text-slate-400">Listas para ensaios e apresentações</p>
-              </div>
-            </div>
-          </Link>
-        </nav>
-      </div>
-
-      <footer className="text-center py-4 text-[11px] text-slate-500">
-        CifraGo App &bull; <span className="text-amber-500/70">Seus acordes, o seu ritmo</span>
-      </footer>
-    </main>
-  );
-}
-</file>
-
 <file path="lib/auth.ts">
 import { User } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -1974,190 +1696,6 @@ export async function getUserRole(user: User | null): Promise<UserRole> {
 }
 </file>
 
-<file path="lib/firebase-functions.ts">
-import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  deleteDoc, 
-  doc, 
-  getDoc,
-  updateDoc 
-} from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
-import { getUserRole, getPermissions } from "@/lib/auth";
-
-/**
- * ==========================================
- * MÚSICAS
- * ==========================================
- */
-
-/**
- * Retorna as músicas com base automática nas permissões do utilizador logado.
- */
-export async function serviceGetMusicas() {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return [];
-
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
-  const musicasRef = collection(db, "musicas");
-  let q;
-
-  if (permissions.canViewGlobalLibrary) {
-    q = query(musicasRef);
-  } else {
-    q = query(musicasRef, where("userId", "==", currentUser.uid));
-  }
-
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
-}
-
-/**
- * Apaga uma música garantindo que respeita as regras de permissão.
- */
-export async function serviceDeletarMusica(idMusica: string, donoIdMusica: string) {
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("Utilizador não autenticado.");
-
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
-  if (!permissions.canModifyContent) {
-    throw new Error("Não tens permissão para excluir conteúdos.");
-  }
-
-  if (!permissions.canViewGlobalLibrary && currentUser.uid !== donoIdMusica) {
-    throw new Error("Só podes apagar registos criados por ti.");
-  }
-
-  await deleteDoc(doc(db, "musicas", idMusica));
-}
-
-/**
- * ==========================================
- * REPERTÓRIOS
- * ==========================================
- */
-
-/**
- * Retorna os repertórios com base automática nas permissões do utilizador logado.
- */
-export async function serviceGetRepertorios() {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return [];
-
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
-  const repertoriosRef = collection(db, "repertorios");
-  let q;
-
-  if (permissions.canViewGlobalLibrary) {
-    q = query(repertoriosRef);
-  } else {
-    q = query(repertoriosRef, where("userId", "==", currentUser.uid));
-  }
-
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
-}
-
-/**
- * Apaga um repertório garantindo que respeita as regras de permissão.
- */
-export async function serviceDeletarRepertorio(idRepertorio: string, donoIdRepertorio: string) {
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("Utilizador não autenticado.");
-
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
-  if (!permissions.canModifyContent) {
-    throw new Error("Não tens permissão para excluir conteúdos.");
-  }
-
-  if (!permissions.canViewGlobalLibrary && currentUser.uid !== donoIdRepertorio) {
-    throw new Error("Só podes apagar registos criados por ti.");
-  }
-
-  await deleteDoc(doc(db, "repertorios", idRepertorio));
-}
-
-/**
- * Retorna os dados de um repertório específico pelo ID.
- */
-export async function serviceGetRepertorioPorId(idRepertorio: string) {
-  const docRef = doc(db, "repertorios", idRepertorio);
-  const docSnap = await getDoc(docRef);
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() };
-}
-
-/**
- * Atualiza os dados de um repertório (título, descrição e/ou músicas).
- */
-export async function serviceAtualizarRepertorio(
-  idRepertorio: string, 
-  dados: { titulo?: string; descricao?: string; musicasIds?: string[] }
-) {
-  const currentUser = auth.currentUser;
-  if (!currentUser) throw new Error("Utilizador não autenticado.");
-
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
-  if (!permissions.canModifyContent) {
-    throw new Error("Não tens permissão para editar conteúdos.");
-  }
-
-  const docRef = doc(db, "repertorios", idRepertorio);
-  
-  const dadosAtualizacao: any = {};
-  if (dados.titulo !== undefined) dadosAtualizacao.titulo = dados.titulo;
-  if (dados.descricao !== undefined) dadosAtualizacao.descricao = dados.descricao;
-  if (dados.musicasIds !== undefined) dadosAtualizacao.musicasIds = dados.musicasIds;
-
-  await updateDoc(docRef, dadosAtualizacao);
-}
-
-/**
- * Retorna todas as músicas (global ou filtrada por utilizador, conforme permissão).
- */
-export async function serviceGetTodasMusicas() {
-  const currentUser = auth.currentUser;
-  if (!currentUser) return [];
-
-  const role = await getUserRole(currentUser);
-  const permissions = getPermissions(role);
-
-  const musicasRef = collection(db, "musicas");
-  let q;
-
-  if (permissions.canViewGlobalLibrary) {
-    q = query(musicasRef);
-  } else {
-    q = query(musicasRef, where("userId", "==", currentUser.uid));
-  }
-
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  }));
-}
-</file>
-
 <file path="lib/firebase.ts">
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth"; // <-- Adicionado
@@ -2185,235 +1723,37 @@ export const db = initializeFirestore(app, {
 });
 </file>
 
-<file path="app/login/page.tsx">
-"use client";
-
-import { useState } from "react";
-import Link from "next/link";
-import Image from "next/image";
-import { useRouter } from "next/navigation";
-import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
-import { 
-  signInWithEmailAndPassword, 
-  GoogleAuthProvider, 
-  signInWithPopup 
-} from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import AboutModal from "@/components/AboutModal";
-
-export default function LoginPage() {
-  const router = useRouter();
-  const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [erroMsg, setErroMsg] = useState("");
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setErroMsg("");
-
-    try {
-      await signInWithEmailAndPassword(auth, email, password);
-      router.push("/");
-    } catch (error: any) {
-      console.error("Erro no login:", error);
-      if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
-        setErroMsg("E-mail ou senha incorretos.");
-      } else if (error.code === "auth/invalid-email") {
-        setErroMsg("O formato do e-mail é inválido.");
-      } else {
-        setErroMsg("Ocorreu um erro ao entrar. Tente novamente.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    setErroMsg("");
-
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      router.push("/");
-    } catch (error: any) {
-      console.error("Erro no login com Google:", error);
-      setErroMsg("Não foi possível autenticar com o Google. Tente novamente.");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  return (
-    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-md border border-amber-500/20 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
-        
-        {/* Cabeçalho com o Logótipo do CifraGo */}
-        <div className="flex flex-col items-center py-2 border-b border-slate-800/80 pb-6">
-          <div className="relative w-28 h-24 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
-            <Image
-              src="/logo.png"
-              alt="Logo CifraGo"
-              fill
-              className="object-contain"
-              priority
-            />
-          </div>
-          <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
-            Seus acordes, o seu ritmo
-          </p>
-          {/* <h1 className="text-xl font-bold tracking-tight text-slate-100 mt-1">
-            Login
-          </h1> */}
-        </div>
-
-        {/* Mensagem de Erro, caso exista */}
-        {erroMsg && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl text-center">
-            {erroMsg}
-          </div>
-        )}
-
-        {/* Botão Google */}
-        {/* <button
-          type="button"
-          onClick={handleGoogleLogin}
-          disabled={googleLoading || loading}
-          className="w-full bg-slate-950 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium py-3 rounded-xl transition flex items-center justify-center gap-3 text-sm shadow-sm active:scale-[0.99] disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {googleLoading ? (
-            <Loader2 size={18} className="animate-spin text-amber-400" />
-          ) : (
-            <svg className="w-4 h-4" viewBox="0 0 24 24">
-              <path
-                fill="#EA4335"
-                d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.7 2.9C6.2 7.1 8.8 5 12 5z"
-              />
-              <path
-                fill="#4285F4"
-                d="M23.5 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.8z"
-              />
-              <path
-                fill="#FBBC05"
-                d="M5.3 14.7c-.2-.7-.3-1.5-.3-2.3s.1-1.6.3-2.3L1.6 7.2C.6 9.2 0 11.5 0 13.9s.6 4.7 1.6 6.7l3.7-2.9c-.2-.7-.3-1.5-.3-2.3z"
-              />
-              <path
-                fill="#34A853"
-                d="M12 23c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3.2 0-5.8-2.1-6.7-5.1L1.6 16c1.9 3.8 5.8 7 10.4 7z"
-              />
-            </svg>
-          )}
-          <span>Continuar com o Google</span>
-        </button>
-
-        <div className="flex items-center my-4">
-          <div className="flex-grow border-t border-slate-800"></div>
-          <span className="px-3 text-xs text-slate-500 uppercase tracking-widest">ou e-mail</span>
-          <div className="flex-grow border-t border-slate-800"></div>
-        </div> */}
-
-        {/* Formulário Tradicional */}
-        <form onSubmit={handleLogin} className="space-y-4">
-          
-          {/* Campo E-mail */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              E-mail
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-                <Mail size={16} />
-              </span>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nome@exemplo.com"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
-              />
-            </div>
-          </div>
-
-          {/* Campo Senha */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
-              Senha
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
-                <Lock size={16} />
-              </span>
-              <input
-                type={showPassword ? "text" : "password"}
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition"
-              >
-                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-              </button>
-            </div>
-          </div>
-
-          {/* Botão Submeter */}
-          <button
-            type="submit"
-            disabled={loading || googleLoading}
-            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? (
-              <>
-                <Loader2 size={16} className="animate-spin" />
-                <span>A entrar...</span>
-              </>
-            ) : (
-              <>
-                <span>Entrar</span>
-                <ArrowRight size={16} />
-              </>
-            )}
-          </button>
-        </form>
-
-        {/* Rodapé / Ir para o Cadastro e Sobre */}
-        <div className="text-center pt-2 space-y-3">
-          <p className="text-xs text-slate-400">
-            Ainda não tens uma conta?{" "}
-            <Link href="/login-cadastro" className="text-amber-400 font-semibold hover:underline">
-              Criar conta
-            </Link>
-          </p>
-
-          {/* Botão que abre a janela "Sobre" estilo Firefox */}
-          <div className="pt-2 border-t border-slate-800/50 flex justify-center">
-            <button 
-              type="button"
-              onClick={() => setIsAboutOpen(true)}
-              className="text-[11px] uppercase tracking-widest text-slate-400 hover:text-amber-400 font-medium transition"
-            >
-              Sobre o CifraGo
-            </button>
-          </div>
-        </div>
-
-      </div>
-
-      {/* Modal Sobre Atribuído */}
-      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
-    </main>
-  );
+<file path="package.json">
+{
+  "name": "app-cifras",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@hello-pangea/dnd": "^18.0.1",
+    "firebase": "^12.19.0",
+    "firebase-admin": "^14.4.0",
+    "jspdf": "^4.2.1",
+    "lucide-react": "^1.47.0",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
 }
 </file>
 
@@ -2725,189 +2065,177 @@ export default function VerMusicaPage({ params }: { params: Promise<{ id: string
 }
 </file>
 
-<file path="app/musicas/nova/page.tsx">
+<file path="app/musicas/nova/actions.ts">
+"use server";
+
+export async function criarMusicaAction(data: {
+  titulo: string;
+  artista: string;
+  tomOriginal: string;
+  cifra: string;
+  userId: string;
+  criadoPor?: string; // <--- 1. Receber o criadoPor
+}) {
+  const projectId = "app-cifras-bcdce";
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`;
+
+  const bodyData = {
+    fields: {
+      titulo: { stringValue: data.titulo },
+      artista: { stringValue: data.artista },
+      tomOriginal: { stringValue: data.tomOriginal },
+      tomAtual: { stringValue: data.tomOriginal },
+      cifra: { stringValue: data.cifra },
+      userId: { stringValue: data.userId || "" },
+      criadoPor: { stringValue: data.criadoPor || "" }, // <--- 2. Gravar o criadoPor no Firestore
+      criado_em: { timestampValue: new Date().toISOString() },
+    },
+  };
+
+  try {
+    const resposta = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(bodyData),
+    });
+
+    if (!resposta.ok) {
+      const erroJson = await resposta.json();
+      console.error("Erro na REST API do Firestore:", erroJson);
+      return {
+        sucesso: false,
+        erro: erroJson.error?.message || "Erro ao salvar no Firestore.",
+      };
+    }
+
+    return { sucesso: true };
+  } catch (erro: any) {
+    console.error("Erro de conexão na Server Action:", erro);
+    return { sucesso: false, erro: erro?.message || "Erro de rede ao salvar." };
+  }
+}
+</file>
+
+<file path="app/repertorios/[id]/editar/page.tsx">
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
-import { criarMusicaAction } from "./actions";
-import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
 import Link from "next/link";
-import { auth } from "@/lib/firebase";
+import { ArrowLeft, Save } from "lucide-react";
+import { serviceGetRepertorioPorId, serviceAtualizarRepertorio } from "@/lib/firebase-functions";
+import { auth } from "@/lib/firebase"; // <--- 1. Importar o auth
 
-export default function NovaMusicaPage() {
+export default function EditarRepertorioPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: repertorioId } = use(params);
   const router = useRouter();
+
   const [titulo, setTitulo] = useState("");
-  const [artista, setArtista] = useState("");
-  const [tomOriginal, setTomOriginal] = useState("C");
-  const [cifra, setCifra] = useState("");
-  const [carregando, setCarregando] = useState(false);
-  const [mensagemErro, setMensagemErro] = useState("");
-  const [emTelaCheia, setEmTelaCheia] = useState(false);
-  
-  const containerCifraRef = useRef<HTMLDivElement>(null);
+  const [descricao, setDescricao] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
 
-  const alternarTelaCheia = () => {
-    if (!document.fullscreenElement && containerCifraRef.current) {
-      containerCifraRef.current.requestFullscreen().catch((err) => {
-        console.error("Erro ao tentar entrar em tela cheia:", err);
-      });
-      setEmTelaCheia(true);
-    } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
+  useEffect(() => {
+    async function carregarRepertorio() {
+      try {
+        const repertorio: any = await serviceGetRepertorioPorId(repertorioId);
+        if (repertorio) {
+          setTitulo(repertorio.titulo || "");
+          setDescricao(repertorio.descricao || "");
+        }
+      } catch (erro) {
+        console.error("Erro ao carregar repertório:", erro);
+      } finally {
+        setCarregando(false);
       }
-      setEmTelaCheia(false);
     }
-  };
 
-  const salvarMusica = async (e: React.FormEvent) => {
+    carregarRepertorio();
+  }, [repertorioId]);
+
+  const handleSalvar = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Evita múltiplos cliques se já estiver a carregar
-    if (carregando) return;
-    
-    setMensagemErro("");
-
-    // Validação 1: Título obrigatório
-    if (!titulo.trim()) {
-      alert("Digite o título da música!");
-      return;
-    }
-
-    // Validação 2: Alerta se a cifra estiver vazia (Ideia 2)
-    if (!cifra.trim()) {
-      const confirmar = window.confirm(
-        "Atenção: O campo de cifra/letra está vazio. Deseja realmente guardar a música sem conteúdo?"
-      );
-      if (!confirmar) return; // Cancela a submissão se o utilizador desistir
-    }
+    if (!titulo.trim()) return;
 
     try {
-      setCarregando(true); // Bloqueia imediatamente o botão
-
+      setSalvando(true);
       const user = auth.currentUser;
 
-      const resultado = await criarMusicaAction({
-        titulo,
-        artista,
-        tomOriginal,
-        cifra,
-        userId: user ? user.uid : "",
+      // 2. Enviar o criadoPor com o e-mail atual
+      await serviceAtualizarRepertorio(repertorioId, { 
+        titulo, 
+        descricao, 
+        criadoPor: user?.email ?? "" 
       });
 
-      if (resultado.sucesso) {
-        router.push("/musicas");
-        router.refresh();
-      } else {
-        setMensagemErro(resultado.erro || "Ocorreu um erro ao salvar.");
-        setCarregando(false); // Liberta o botão apenas se houver erro
-      }
+      router.push("/repertorios");
     } catch (erro: any) {
-      setMensagemErro("Erro ao enviar dados para o servidor.");
-      setCarregando(false);
+      console.error("Erro ao atualizar repertório:", erro);
+      alert(erro.message || "Erro ao atualizar repertório.");
+    } finally {
+      setSalvando(false);
     }
   };
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-slate-400">A carregar repertório...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
-      <header className="flex items-center gap-3 mb-6 pt-2 border-b border-slate-800 pb-4">
+      <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
         <Link
-          href="/musicas"
+          href="/repertorios"
           className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
         >
           <ArrowLeft size={20} />
         </Link>
-        <h1 className="text-xl font-bold text-amber-400">Nova Música</h1>
+        <h1 className="text-xl font-bold text-amber-400">Editar Repertório</h1>
       </header>
 
-      {mensagemErro && (
-        <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-200 text-sm">
-          <strong>Erro:</strong> {mensagemErro}
-        </div>
-      )}
-
-      <form onSubmit={salvarMusica} className="space-y-4">
+      <form onSubmit={handleSalvar} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">
-            Título da Música *
+          <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">
+            Título do Repertório *
           </label>
           <input
             type="text"
             required
-            placeholder="Ex: Porque Ele Vive"
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">
-            Artista / Cantor
+          <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">
+            Descrição (Opcional)
           </label>
-          <input
-            type="text"
-            placeholder="Ex: Harpa Cristã"
-            value={artista}
-            onChange={(e) => setArtista(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">
-            Tom Original
-          </label>
-          <select
-            value={tomOriginal}
-            onChange={(e) => setTomOriginal(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 focus:outline-none focus:border-amber-400"
-          >
-            {["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"].map(
-              (nota) => (
-                <option key={nota} value={nota}>
-                  {nota}
-                </option>
-              )
-            )}
-          </select>
-        </div>
-
-        {/* Bloco da Cifra com suporte a expansão / ecrã cheio */}
-        <div ref={containerCifraRef} className={`${emTelaCheia ? 'bg-slate-900 p-4 h-screen flex flex-col' : ''}`}>
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-slate-300">
-              Cifra / Letra
-            </label>
-            <button
-              type="button"
-              onClick={alternarTelaCheia}
-              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition"
-              title="Expandir campo de texto"
-            >
-              {emTelaCheia ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-              <span>{emTelaCheia ? "Normal" : "Expandir"}</span>
-            </button>
-          </div>
           <textarea
-            rows={12}
-            placeholder="Cole aqui a cifra ou letra da música..."
-            value={cifra}
-            onChange={(e) => setCifra(e.target.value)}
-            className={`w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:border-amber-400 ${
-              emTelaCheia ? "flex-1 h-[80vh]" : ""
-            }`}
+            rows={3}
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 resize-none"
           />
         </div>
 
         <button
           type="submit"
-          disabled={carregando}
-          className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-700 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 transition shadow-lg"
+          disabled={salvando}
+          className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold p-3.5 rounded-xl transition flex items-center justify-center gap-2 mt-6 shadow-lg"
         >
-          <Save size={20} />
-          {carregando ? "A salvar..." : "Salvar Música"}
+          <Save size={18} />
+          {salvando ? "A guardar..." : "Salvar Alterações"}
         </button>
       </form>
     </main>
@@ -3255,287 +2583,735 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 </file>
 
-<file path="app/musicas/page.tsx">
+<file path="app/page.tsx">
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search, Loader2 } from "lucide-react";
-import { onAuthStateChanged, User } from "firebase/auth";
+import Link from "next/link";
+import Image from "next/image";
+import { Music, FolderKanban, LogOut, Loader2, ShieldCheck } from "lucide-react";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { getUserRole, getPermissions, UserPermissions } from "@/lib/auth";
-import { serviceGetMusicas, serviceDeletarMusica } from "@/lib/firebase-functions";
-import { salvarOrdemMusicasAction } from "./actions";
+import { isAdmin } from "@/lib/auth";
 
-interface Musica {
-  id: string;
-  titulo: string;
-  artista: string;
-  tomOriginal: string;
-  ordem?: number;
-  userId: string;
-}
-
-export default function MusicasPage() {
+export default function HomePage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [musicas, setMusicas] = useState<Musica[]>([]);
-  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
-  const [termoBusca, setTermoBusca] = useState("");
-  const [carregando, setCarregando] = useState(true);
-  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
-
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
-  const [itemArrastado, setItemArrastado] = useState<number | null>(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
+  const [userIsAdmin, setUserIsAdmin] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (!currentUser) {
         router.push("/login");
       } else {
         setUser(currentUser);
-        
-        // 1. Descobre as permissões do utilizador logado
-        const role = await getUserRole(currentUser);
-        const userPerms = getPermissions(role);
-        setPermissions(userPerms);
-
-        // 2. Carrega as músicas utilizando a função centralizada
-        await carregarMusicas();
+        setUserIsAdmin(isAdmin(currentUser));
       }
+      setLoadingAuth(false);
     });
 
     return () => unsubscribe();
   }, [router]);
 
-  const carregarMusicas = async () => {
-    try {
-      setCarregando(true);
-      const lista = await serviceGetMusicas();
-      
-      const musicasFormatadas: Musica[] = lista.map((item: any) => ({
-        id: item.id,
-        titulo: item.titulo || "Sem título",
-        artista: item.artista || "Artista desconhecido",
-        tomOriginal: item.tomOriginal || "C",
-        ordem: item.ordem ?? 0,
-        userId: item.userId,
-      }));
+  const handleLogout = async () => {
+    await signOut(auth);
+    router.push("/login");
+  };
 
-      musicasFormatadas.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
-      setMusicas(musicasFormatadas);
-    } catch (erro) {
-      console.error("Erro ao carregar músicas:", erro);
-    } finally {
-      setCarregando(false);
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-400">
+        <Loader2 size={32} className="animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
+      <div>
+        {/* Barra superior apenas com o Utilizador e Sair */}
+        <div className="flex items-center justify-between pb-3 mb-2 border-b border-slate-900 text-xs text-slate-400">
+          <span className="truncate max-w-[220px]">{user?.email}</span>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1 text-slate-400 hover:text-red-400 transition"
+            title="Terminar Sessão"
+          >
+            <LogOut size={14} />
+            <span>Sair</span>
+          </button>
+        </div>
+
+        {/* Cabeçalho com Logo CifraGo Centralizada */}
+        <header className="flex flex-col items-center py-4 border-b border-slate-800/80 mb-6">
+          <div className="relative w-32 h-28 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
+            <Image
+              src="/logo.png"
+              alt="Logo CifraGo"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+
+          <p className="text-center text-xs text-amber-400/90 font-medium tracking-wide italic">
+            Seus acordes, o seu ritmo
+          </p>
+        </header>
+
+        {/* Navegação Principal */}
+        <nav className="space-y-4">
+          <Link
+            href="/musicas"
+            className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-amber-500/20 hover:border-amber-400/60 hover:bg-slate-900 transition group shadow-lg"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-slate-950 transition shadow-sm">
+                <Music size={24} />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-slate-100 group-hover:text-amber-400 transition">
+                  Músicas
+                </h2>
+                <p className="text-xs text-slate-400">Ver e gerir catálogo de cifras</p>
+              </div>
+            </div>
+          </Link>
+
+          <Link
+            href="/repertorios"
+            className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-amber-500/20 hover:border-amber-400/60 hover:bg-slate-900 transition group shadow-lg"
+          >
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-amber-500/10 text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-slate-950 transition shadow-sm">
+                <FolderKanban size={24} />
+              </div>
+              <div>
+                <h2 className="font-bold text-lg text-slate-100 group-hover:text-amber-400 transition">
+                  Repertórios
+                </h2>
+                <p className="text-xs text-slate-400">Listas para ensaios e apresentações</p>
+              </div>
+            </div>
+          </Link>
+
+          {/* Bloco do Painel Admin (Exclusivo para Administrador) */}
+          {userIsAdmin && (
+            <Link
+              href="/admin/usuarios"
+              className="flex items-center justify-between bg-slate-900/90 p-5 rounded-2xl border border-amber-500/40 hover:border-amber-400/80 hover:bg-slate-900 transition group shadow-lg"
+            >
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-amber-500/20 text-amber-400 rounded-xl group-hover:bg-amber-500 group-hover:text-slate-950 transition shadow-sm">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg text-amber-400 group-hover:text-amber-300 transition">
+                    Painel Admin
+                  </h2>
+                  <p className="text-xs text-slate-400">Aprovar e gerir utilizadores</p>
+                </div>
+              </div>
+            </Link>
+          )}
+        </nav>
+      </div>
+
+      <footer className="text-center py-4 text-[11px] text-slate-500">
+        CifraGo App &bull; <span className="text-amber-500/70">Seus acordes, o seu ritmo</span>
+      </footer>
+    </main>
+  );
+}
+</file>
+
+<file path="lib/firebase-functions.ts">
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  deleteDoc, 
+  doc, 
+  getDoc,
+  updateDoc 
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { getUserRole, getPermissions, isAdmin } from "@/lib/auth";
+
+/**
+ * ==========================================
+ * MÚSICAS
+ * ==========================================
+ */
+
+/**
+ * Retorna as músicas permitidas para o utilizador logado (Próprias, Partilhadas ou Globais para Admin).
+ */
+export async function serviceGetMusicas() {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return [];
+
+  const musicasRef = collection(db, "musicas");
+  
+  // Buscamos todas as músicas e aplicamos a segurança e filtros no código,
+  // garantindo que músicas partilhadas via 'compartilhadoCom' sejam incluídas.
+  const snapshot = await getDocs(query(musicasRef));
+  
+  const emailUser = currentUser.email?.toLowerCase().trim() || "";
+  const admin = isAdmin(currentUser);
+
+  const musicasPermitidas: any[] = [];
+
+  snapshot.docs.forEach(docSnap => {
+    const data = docSnap.data();
+    const criadoPor = (data.criadoPor || data.email || "").toLowerCase().trim();
+    const compartilhadoCom = (data.compartilhadoCom || []).map((e: string) => e.toLowerCase().trim());
+
+    const eDono = criadoPor === emailUser || data.userId === currentUser.uid;
+    const eCompartilhado = compartilhadoCom.includes(emailUser);
+
+    if (admin || eDono || eCompartilhado) {
+      musicasPermitidas.push({
+        id: docSnap.id,
+        ...data
+      });
     }
-  };
+  });
 
-  // Lógica de Arrastar e Reordenar
-  const handleDragStart = (index: number) => {
-    dragItem.current = index;
-    setItemArrastado(index);
-  };
+  return musicasPermitidas;
+}
 
-  const handleDragEnter = (index: number) => {
-    dragOverItem.current = index;
-  };
+/**
+ * Apaga uma música garantindo que respeita as regras de permissão.
+ */
+export async function serviceDeletarMusica(idMusica: string, donoIdMusica: string) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Utilizador não autenticado.");
 
-  const handleDragEnd = async () => {
-    if (
-      dragItem.current !== null &&
-      dragOverItem.current !== null &&
-      dragItem.current !== dragOverItem.current
-    ) {
-      const novaLista = [...musicas];
-      const itemMovido = novaLista.splice(dragItem.current, 1)[0];
-      novaLista.splice(dragOverItem.current, 0, itemMovido);
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
 
-      setMusicas(novaLista);
+  if (!permissions.canModifyContent) {
+    throw new Error("Não tens permissão para excluir conteúdos.");
+  }
 
-      setSalvandoOrdem(true);
-      await salvarOrdemMusicasAction(novaLista);
-      setSalvandoOrdem(false);
+  if (!permissions.canViewGlobalLibrary && currentUser.uid !== donoIdMusica) {
+    throw new Error("Só podes apagar registos criados por ti.");
+  }
+
+  await deleteDoc(doc(db, "musicas", idMusica));
+}
+
+/**
+ * ==========================================
+ * REPERTÓRIOS
+ * ==========================================
+ */
+
+/**
+ * Retorna os repertórios permitidos para o utilizador logado (Próprios, Partilhados ou Globais para Admin).
+ */
+export async function serviceGetRepertorios() {
+  const currentUser = auth.currentUser;
+  if (!currentUser) return [];
+
+  const repertoriosRef = collection(db, "repertorios");
+  const snapshot = await getDocs(query(repertoriosRef));
+  
+  const emailUser = currentUser.email?.toLowerCase().trim() || "";
+  const admin = isAdmin(currentUser);
+
+  const repertoriosPermitidos: any[] = [];
+
+  snapshot.docs.forEach(docSnap => {
+    const data = docSnap.data();
+    const criadoPor = (data.criadoPor || data.email || "").toLowerCase().trim();
+    const compartilhadoCom = (data.compartilhadoCom || []).map((e: string) => e.toLowerCase().trim());
+
+    const eDono = criadoPor === emailUser || data.userId === currentUser.uid;
+    const eCompartilhado = compartilhadoCom.includes(emailUser);
+
+    if (admin || eDono || eCompartilhado) {
+      repertoriosPermitidos.push({
+        id: docSnap.id,
+        ...data
+      });
     }
+  });
 
-    dragItem.current = null;
-    dragOverItem.current = null;
-    setItemArrastado(null);
-  };
+  return repertoriosPermitidos;
+}
 
-  const handleExcluir = async (id: string, titulo: string, donoId: string, e: React.MouseEvent) => {
+/**
+ * Apaga um repertório garantindo que respeita as regras de permissão.
+ */
+export async function serviceDeletarRepertorio(idRepertorio: string, donoIdRepertorio: string) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Utilizador não autenticado.");
+
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
+
+  if (!permissions.canModifyContent) {
+    throw new Error("Não tens permissão para excluir conteúdos.");
+  }
+
+  if (!permissions.canViewGlobalLibrary && currentUser.uid !== donoIdRepertorio) {
+    throw new Error("Só podes apagar registos criados por ti.");
+  }
+
+  await deleteDoc(doc(db, "repertorios", idRepertorio));
+}
+
+/**
+ * Retorna os dados de um repertório específico pelo ID (com suporte a partilhados).
+ */
+export async function serviceGetRepertorioPorId(idRepertorio: string) {
+  const repertorios = await serviceGetRepertorios();
+  const repertorioEncontrado = repertorios.find((r: any) => r.id === idRepertorio);
+  return repertorioEncontrado || null;
+}
+
+/**
+ * Atualiza os dados de um repertório (título, descrição, músicas e criadoPor).
+ */
+export async function serviceAtualizarRepertorio(
+  idRepertorio: string, 
+  dados: { titulo?: string; descricao?: string; musicasIds?: string[]; criadoPor?: string }
+) {
+  const currentUser = auth.currentUser;
+  if (!currentUser) throw new Error("Utilizador não autenticado.");
+
+  const role = await getUserRole(currentUser);
+  const permissions = getPermissions(role);
+
+  if (!permissions.canModifyContent) {
+    throw new Error("Não tens permissão para editar conteúdos.");
+  }
+
+  const docRef = doc(db, "repertorios", idRepertorio);
+  
+  const dadosAtualizacao: any = {};
+  if (dados.titulo !== undefined) dadosAtualizacao.titulo = dados.titulo;
+  if (dados.descricao !== undefined) dadosAtualizacao.descricao = dados.descricao;
+  if (dados.musicasIds !== undefined) dadosAtualizacao.musicasIds = dados.musicasIds;
+  
+  // Atualiza ou insere o criadoPor com base no utilizador atual ou no passado
+  dadosAtualizacao.criadoPor = dados.criadoPor || currentUser.email || "";
+
+  await updateDoc(docRef, dadosAtualizacao);
+}
+
+/**
+ * Retorna todas as músicas permitidas.
+ */
+export async function serviceGetTodasMusicas() {
+  return serviceGetMusicas();
+}
+</file>
+
+<file path="app/login/page.tsx">
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Lock, Mail, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import AboutModal from "@/components/AboutModal";
+import { isAdmin } from "@/lib/auth";
+
+export default function LoginPage() {
+  const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [erroMsg, setErroMsg] = useState("");
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
+    setLoading(true);
+    setErroMsg("");
 
-    if (confirm(`Tem certeza de que deseja eliminar a música "${titulo}"?`)) {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Se for o admin principal, libera acesso direto
+      if (isAdmin(user)) {
+        router.push("/");
+        return;
+      }
+
+      // Verifica no Firestore se o utilizador está aprovado
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.aprovado !== true) {
+          await signOut(auth);
+          setErroMsg("A sua conta aguarda aprovação do administrador.");
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Se não existir registo no Firestore, bloqueia por segurança
+        await signOut(auth);
+        setErroMsg("Registo não encontrado ou pendente de aprovação.");
+        setLoading(false);
+        return;
+      }
+
+      router.push("/");
+    } catch (error: any) {
+      console.error("Erro no login:", error);
+      if (error.code === "auth/invalid-credential" || error.code === "auth/user-not-found" || error.code === "auth/wrong-password") {
+        setErroMsg("E-mail ou senha incorretos.");
+      } else if (error.code === "auth/invalid-email") {
+        setErroMsg("O formato do e-mail é inválido.");
+      } else {
+        setErroMsg("Ocorreu um erro ao entrar. Tente novamente.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-slate-900/90 backdrop-blur-md border border-amber-500/20 p-6 sm:p-8 rounded-3xl shadow-2xl space-y-6">
+        
+        {/* Cabeçalho com o Logótipo do CifraGo */}
+        <div className="flex flex-col items-center py-2 border-b border-slate-800/80 pb-6">
+          <div className="relative w-28 h-24 drop-shadow-[0_10px_20px_rgba(245,158,11,0.15)] mb-2">
+            <Image
+              src="/logo.png"
+              alt="Logo CifraGo"
+              fill
+              className="object-contain"
+              priority
+            />
+          </div>
+          <p className="text-xs text-amber-400/90 font-medium tracking-wide italic mt-1">
+            Seus acordes, o seu ritmo
+          </p>
+        </div>
+
+        {/* Mensagem de Erro, caso exista */}
+        {erroMsg && (
+          <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded-xl text-center">
+            {erroMsg}
+          </div>
+        )}
+
+        {/* Formulário Tradicional */}
+        <form onSubmit={handleLogin} className="space-y-4">
+          
+          {/* Campo E-mail */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              E-mail
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Mail size={16} />
+              </span>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nome@exemplo.com"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+            </div>
+          </div>
+
+          {/* Campo Senha */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider">
+              Senha
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-500 pointer-events-none">
+                <Lock size={16} />
+              </span>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-amber-400 transition"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition"
+              >
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Botão Submeter */}
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-3 rounded-xl transition flex items-center justify-center gap-2 text-sm shadow-lg shadow-amber-500/10 active:scale-[0.99] mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <>
+                <Loader2 size={16} className="animate-spin" />
+                <span>A entrar...</span>
+              </>
+            ) : (
+              <>
+                <span>Entrar</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </form>
+
+        {/* Rodapé / Ir para o Cadastro e Sobre */}
+        <div className="text-center pt-2 space-y-3">
+          <p className="text-xs text-slate-400">
+            Ainda não tens uma conta?{" "}
+            <Link href="/login-cadastro" className="text-amber-400 font-semibold hover:underline">
+              Criar conta
+            </Link>
+          </p>
+
+          <div className="pt-2 border-t border-slate-800/50 flex justify-center">
+            <button 
+              type="button"
+              onClick={() => setIsAboutOpen(true)}
+              className="text-[11px] uppercase tracking-widest text-slate-400 hover:text-amber-400 font-medium transition"
+            >
+              Sobre o CifraGo
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
+    </main>
+  );
+}
+</file>
+
+<file path="app/musicas/[id]/editar/page.tsx">
+"use client";
+
+import { useState, useEffect, use, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
+import { editarMusicaAction } from "../actions";
+import { auth } from "@/lib/firebase"; // <--- 1. Importar o auth
+
+export default function EditarMusicaPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: musicaId } = use(params);
+  const router = useRouter();
+
+  const [titulo, setTitulo] = useState("");
+  const [artista, setArtista] = useState("");
+  const [tomOriginal, setTomOriginal] = useState("C");
+  const [cifra, setCifra] = useState("");
+
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [emTelaCheia, setEmTelaCheia] = useState(false);
+
+  const containerCifraRef = useRef<HTMLDivElement>(null);
+  const projectId = "app-cifras-bcdce";
+
+  useEffect(() => {
+    async function carregarMusica() {
       try {
-        await serviceDeletarMusica(id, donoId);
-        setMusicas((prev) => prev.filter((m) => m.id !== id));
-      } catch (erro: any) {
-        alert(erro.message || "Erro ao eliminar música.");
+        const res = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}`,
+          { cache: "no-store" }
+        );
+
+        if (res.ok) {
+          const doc = await res.json();
+          const f = doc.fields || {};
+          setTitulo(f.titulo?.stringValue || "");
+          setArtista(f.artista?.stringValue || "");
+          setTomOriginal(f.tomOriginal?.stringValue || "C");
+          setCifra(f.cifra?.stringValue || "");
+        }
+      } catch (e) {
+        console.error("Erro ao carregar música:", e);
+      } finally {
+        setCarregando(false);
       }
     }
+    carregarMusica();
+  }, [musicaId]);
+
+  const alternarTelaCheia = () => {
+    if (!document.fullscreenElement && containerCifraRef.current) {
+      containerCifraRef.current.requestFullscreen().catch((err) => {
+        console.error("Erro ao tentar entrar em tela cheia:", err);
+      });
+      setEmTelaCheia(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+      setEmTelaCheia(false);
+    }
   };
 
-  const musicasFiltradas = musicas.filter(
-    (m) =>
-      m.titulo.toLowerCase().includes(termoBusca.toLowerCase()) ||
-      m.artista.toLowerCase().includes(termoBusca.toLowerCase())
-  );
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!titulo || !artista) {
+      alert("Por favor, preencha o título e o artista.");
+      return;
+    }
+
+    setSalvando(true);
+    
+    // Obter o e-mail do utilizador atualmente logado
+    const user = auth.currentUser;
+
+    const res = await editarMusicaAction(musicaId, {
+      titulo,
+      artista,
+      tomOriginal,
+      cifra,
+      criadoPor: user?.email ?? "", // <--- 2. Enviar o email do criador/editor
+    });
+
+    if (res.sucesso) {
+      router.push("/musicas");
+    } else {
+      alert(res.erro || "Erro ao salvar alterações.");
+      setSalvando(false);
+    }
+  };
 
   if (carregando) {
     return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 w-full flex items-center justify-center">
-        <div className="flex items-center gap-2 text-amber-400">
-          <Loader2 size={24} className="animate-spin" />
-          <p className="text-sm">A carregar músicas...</p>
-        </div>
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex items-center justify-center">
+        <p className="text-slate-400">A carregar música...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
-      <div className="w-full max-w-4xl mx-auto flex-1">
-        {/* Cabeçalho */}
-        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
-            >
-              <ArrowLeft size={20} />
-            </Link>
-            <h1 className="text-xl font-bold text-amber-400">Músicas</h1>
-          </div>
-
-          {/* Só mostra o botão de Nova Música se tiver permissão de modificação */}
-          {permissions?.canModifyContent && (
-            <Link
-              href="/musicas/nova"
-              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
-              title="Nova Música"
-            >
-              <Plus size={20} />
-            </Link>
-          )}
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto flex flex-col justify-between">
+      <div>
+        <header className="flex items-center gap-3 py-4 border-b border-slate-800 mb-6">
+          <Link
+            href="/musicas"
+            className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+          >
+            <ArrowLeft size={20} />
+          </Link>
+          <h1 className="text-xl font-bold text-amber-400">Editar Música</h1>
         </header>
 
-        {/* Campo de Pesquisa */}
-        <div className="relative mb-4">
-          <Search size={18} className="absolute left-3 top-3 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Pesquisar por título ou artista..."
-            value={termoBusca}
-            onChange={(e) => setTermoBusca(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
-          />
-        </div>
-
-        {/* Lista de Músicas com Arraste */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Catálogo de Músicas ({musicasFiltradas.length})
-            </p>
-            {salvandoOrdem && (
-              <span className="text-[10px] text-amber-400 animate-pulse font-mono">
-                A guardar ordem...
-              </span>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Título da Música *
+            </label>
+            <input
+              type="text"
+              value={titulo}
+              onChange={(e) => setTitulo(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
+              required
+            />
           </div>
 
-          {musicasFiltradas.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl space-y-3">
-              <Music size={36} className="mx-auto opacity-40" />
-              <p className="text-sm">Ainda não tens nenhuma música guardada.</p>
-              {permissions?.canModifyContent && (
-                <Link 
-                  href="/musicas/nova"
-                  className="inline-block text-xs text-amber-400 font-semibold hover:underline"
-                >
-                  Criar a primeira música
-                </Link>
-              )}
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Artista / Banda *
+            </label>
+            <input
+              type="text"
+              value={artista}
+              onChange={(e) => setArtista(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Tom Original
+            </label>
+            <select
+              value={tomOriginal}
+              onChange={(e) => setTomOriginal(e.target.value)}
+              className="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-amber-400 transition text-sm"
+            >
+              {[
+                "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B",
+                "Cm", "C#m", "Dm", "D#m", "Em", "Fm", "F#m", "Gm", "G#m", "Am", "A#m", "Bm",
+              ].map((tom) => (
+                <option key={tom} value={tom}>
+                  {tom}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Bloco da Cifra com suporte a expansão / ecrã cheio */}
+          <div ref={containerCifraRef} className={`${emTelaCheia ? 'bg-slate-900 p-4 h-screen flex flex-col' : ''}`}>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-300">
+                Cifra / Letra
+              </label>
+              <button
+                type="button"
+                onClick={alternarTelaCheia}
+                className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition"
+                title="Expandir campo de texto"
+              >
+                {emTelaCheia ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                <span>{emTelaCheia ? "Normal" : "Expandir"}</span>
+              </button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {musicasFiltradas.map((m, index) => {
-                const modoBuscaAtivo = termoBusca.trim().length > 0;
+            <textarea
+              value={cifra}
+              onChange={(e) => setCifra(e.target.value)}
+              rows={8}
+              placeholder="Cole aqui a cifra ou letra da música..."
+              className={`w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-slate-100 font-mono text-xs focus:outline-none focus:border-amber-400 transition ${
+                emTelaCheia ? "flex-1 h-[80vh]" : ""
+              }`}
+            />
+          </div>
 
-                return (
-                  <div
-                    key={m.id}
-                    draggable={!modoBuscaAtivo}
-                    onDragStart={() => !modoBuscaAtivo && handleDragStart(index)}
-                    onDragEnter={() => !modoBuscaAtivo && handleDragEnter(index)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                    className={`bg-slate-800 p-3.5 rounded-xl border flex items-center justify-between gap-2 transition ${
-                      !modoBuscaAtivo ? "cursor-grab active:cursor-grabbing" : ""
-                    } ${
-                      itemArrastado === index
-                        ? "border-amber-400 opacity-40 bg-slate-700/50"
-                        : "border-slate-700/60 hover:border-slate-600"
-                    }`}
-                  >
-                    {/* Ícone Indicador de Arraste */}
-                    <div
-                      className={`p-1 shrink-0 ${
-                        modoBuscaAtivo
-                          ? "text-slate-700 cursor-not-allowed"
-                          : "text-slate-500 hover:text-amber-400"
-                      }`}
-                    >
-                      <GripVertical size={18} />
-                    </div>
-
-                    {/* Informações da Música */}
-                    <div className="flex-1 overflow-hidden pr-2">
-                      <Link
-                        href={`/musicas/${m.id}`}
-                        className="font-semibold text-slate-100 hover:text-amber-400 transition truncate block"
-                      >
-                        {m.titulo}
-                      </Link>
-                      <p className="text-xs text-slate-400 truncate">{m.artista}</p>
-                    </div>
-
-                    {/* Tom e Botões de Ação */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-bold px-2 py-0.5 rounded text-xs">
-                        {m.tomOriginal}
-                      </span>
-
-                      {/* Botões de Edição e Exclusão restritos a quem pode modificar */}
-                      {permissions?.canModifyContent && (
-                        <>
-                          <Link
-                            href={`/musicas/${m.id}/editar`}
-                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition"
-                            title="Editar"
-                          >
-                            <Edit size={16} />
-                          </Link>
-                          <button
-                            onClick={(e) => handleExcluir(m.id, m.titulo, m.userId, e)}
-                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+          <button
+            type="submit"
+            disabled={salvando}
+            className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-700 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 transition mt-6"
+          >
+            <Save size={20} />
+            {salvando ? "A guardar..." : "Salvar Alterações"}
+          </button>
+        </form>
       </div>
     </main>
   );
@@ -3754,6 +3530,197 @@ export default function SelecionarMusicasPage({
 }
 </file>
 
+<file path="app/musicas/nova/page.tsx">
+"use client";
+
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { criarMusicaAction } from "./actions";
+import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
+import Link from "next/link";
+import { auth } from "@/lib/firebase";
+
+export default function NovaMusicaPage() {
+  const router = useRouter();
+  const [titulo, setTitulo] = useState("");
+  const [artista, setArtista] = useState("");
+  const [tomOriginal, setTomOriginal] = useState("C");
+  const [cifra, setCifra] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  const [mensagemErro, setMensagemErro] = useState("");
+  const [emTelaCheia, setEmTelaCheia] = useState(false);
+  
+  const containerCifraRef = useRef<HTMLDivElement>(null);
+
+  const alternarTelaCheia = () => {
+    if (!document.fullscreenElement && containerCifraRef.current) {
+      containerCifraRef.current.requestFullscreen().catch((err) => {
+        console.error("Erro ao tentar entrar em tela cheia:", err);
+      });
+      setEmTelaCheia(true);
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+      setEmTelaCheia(false);
+    }
+  };
+
+  const salvarMusica = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Evita múltiplos cliques se já estiver a carregar
+    if (carregando) return;
+    
+    setMensagemErro("");
+
+    // Validação 1: Título obrigatório
+    if (!titulo.trim()) {
+      alert("Digite o título da música!");
+      return;
+    }
+
+    // Validação 2: Alerta se a cifra estiver vazia (Ideia 2)
+    if (!cifra.trim()) {
+      const confirmar = window.confirm(
+        "Atenção: O campo de cifra/letra está vazio. Deseja realmente guardar a música sem conteúdo?"
+      );
+      if (!confirmar) return; // Cancela a submissão se o utilizador desistir
+    }
+
+    try {
+      setCarregando(true); // Bloqueia imediatamente o botão
+
+      const user = auth.currentUser;
+
+      const resultado = await criarMusicaAction({
+        titulo,
+        artista,
+        tomOriginal,
+        cifra,
+        userId: user ? user.uid : "",
+        criadoPor: user?.email ?? "", // <-- Adiciona o email do criador aqui
+      });
+
+      if (resultado.sucesso) {
+        router.push("/musicas");
+        router.refresh();
+      } else {
+        setMensagemErro(resultado.erro || "Ocorreu um erro ao salvar.");
+        setCarregando(false); // Liberta o botão apenas se houver erro
+      }
+    } catch (erro: any) {
+      setMensagemErro("Erro ao enviar dados para o servidor.");
+      setCarregando(false);
+    }
+  };
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 max-w-md mx-auto">
+      <header className="flex items-center gap-3 mb-6 pt-2 border-b border-slate-800 pb-4">
+        <Link
+          href="/musicas"
+          className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+        >
+          <ArrowLeft size={20} />
+        </Link>
+        <h1 className="text-xl font-bold text-amber-400">Nova Música</h1>
+      </header>
+
+      {mensagemErro && (
+        <div className="mb-4 p-3 bg-red-900/50 border border-red-500 rounded-lg text-red-200 text-sm">
+          <strong>Erro:</strong> {mensagemErro}
+        </div>
+      )}
+
+      <form onSubmit={salvarMusica} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">
+            Título da Música *
+          </label>
+          <input
+            type="text"
+            required
+            placeholder="Ex: Porque Ele Vive"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">
+            Artista / Cantor
+          </label>
+          <input
+            type="text"
+            placeholder="Ex: Harpa Cristã"
+            value={artista}
+            onChange={(e) => setArtista(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">
+            Tom Original
+          </label>
+          <select
+            value={tomOriginal}
+            onChange={(e) => setTomOriginal(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 focus:outline-none focus:border-amber-400"
+          >
+            {["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"].map(
+              (nota) => (
+                <option key={nota} value={nota}>
+                  {nota}
+                </option>
+              )
+            )}
+          </select>
+        </div>
+
+        {/* Bloco da Cifra com suporte a expansão / ecrã cheio */}
+        <div ref={containerCifraRef} className={`${emTelaCheia ? 'bg-slate-900 p-4 h-screen flex flex-col' : ''}`}>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-sm font-medium text-slate-300">
+              Cifra / Letra
+            </label>
+            <button
+              type="button"
+              onClick={alternarTelaCheia}
+              className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 bg-slate-800 px-2.5 py-1 rounded-md border border-slate-700 transition"
+              title="Expandir campo de texto"
+            >
+              {emTelaCheia ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              <span>{emTelaCheia ? "Normal" : "Expandir"}</span>
+            </button>
+          </div>
+          <textarea
+            rows={12}
+            placeholder="Cole aqui a cifra ou letra da música..."
+            value={cifra}
+            onChange={(e) => setCifra(e.target.value)}
+            className={`w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-slate-100 placeholder-slate-500 font-mono text-sm focus:outline-none focus:border-amber-400 ${
+              emTelaCheia ? "flex-1 h-[80vh]" : ""
+            }`}
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={carregando}
+          className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-amber-700 text-slate-950 font-bold p-3.5 rounded-xl flex items-center justify-center gap-2 transition shadow-lg"
+        >
+          <Save size={20} />
+          {carregando ? "A salvar..." : "Salvar Música"}
+        </button>
+      </form>
+    </main>
+  );
+}
+</file>
+
 <file path="app/repertorios/[id]/apresentacao/page.tsx">
 "use client";
 
@@ -3804,6 +3771,8 @@ export default function ModoApresentacaoPage({
   const [isScrolling, setIsScrolling] = useState(false);
   const [scrollSpeed, setScrollSpeed] = useState(0.030); 
   const scrollRef = useRef<number | null>(null);
+
+  const projectId = "app-cifras-bcdce";
 
   useEffect(() => {
     let wakeLock: any = null;
@@ -3865,10 +3834,13 @@ export default function ModoApresentacaoPage({
     async function carregarApresentacao() {
       try {
         setCarregando(true);
-        
-        // 1. Busca o repertório através do serviço centralizado
+
+        // 1. Busca o repertório pelo serviço centralizado seguro
         const docRep: any = await serviceGetRepertorioPorId(repertorioId);
-        if (!docRep) return;
+        if (!docRep) {
+          setCarregando(false);
+          return;
+        }
 
         const musicasIds: string[] = docRep.musicasIds || [];
         if (musicasIds.length === 0) {
@@ -3876,19 +3848,29 @@ export default function ModoApresentacaoPage({
           return;
         }
 
-        // 2. Busca todas as músicas através do serviço centralizado
-        const listaMusicasGeral = await serviceGetTodasMusicas();
-        const mapaMusicas = new Map<string, Musica>();
+        // 2. Busca todas as músicas via REST API (igual ao PDF) para garantir acesso às músicas do repertório partilhado
+        const resMusicas = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
+          { cache: "no-store" }
+        );
 
-        listaMusicasGeral.forEach((m: any) => {
-          mapaMusicas.set(m.id, {
-            id: m.id,
-            titulo: m.titulo || "Sem título",
-            artista: m.artista || "Artista desconhecido",
-            tomOriginal: m.tomOriginal || "C",
-            cifra: m.cifra || "Cifra não cadastrada.",
-          });
-        });
+        const mapaMusicas = new Map<string, Musica>();
+        if (resMusicas.ok) {
+          const dadosMusicas = await resMusicas.json();
+          if (dadosMusicas.documents) {
+            dadosMusicas.documents.forEach((doc: any) => {
+              const id = doc.name.split("/").pop();
+              const f = doc.fields || {};
+              mapaMusicas.set(id, {
+                id,
+                titulo: f.titulo?.stringValue || "Sem título",
+                artista: f.artista?.stringValue || "Artista desconhecido",
+                tomOriginal: f.tomOriginal?.stringValue || "C",
+                cifra: f.cifra?.stringValue || f.letra?.stringValue || "Cifra não cadastrada.",
+              });
+            });
+          }
+        }
 
         const listaOrdenada = musicasIds
           .map((id) => mapaMusicas.get(id))
@@ -3896,7 +3878,7 @@ export default function ModoApresentacaoPage({
 
         setMusicas(listaOrdenada);
       } catch (erro) {
-        console.error("Erro:", erro);
+        console.error("Erro ao carregar apresentação:", erro);
       } finally {
         setCarregando(false);
       }
@@ -4193,36 +4175,45 @@ export default function ModoApresentacaoPage({
 }
 </file>
 
-<file path="app/repertorios/page.tsx">
+<file path="app/musicas/page.tsx">
 "use client";
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, FolderKanban, Search, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search, Loader2, Share2, X, Check } from "lucide-react";
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { getUserRole, getPermissions, UserPermissions } from "@/lib/auth";
-import { serviceGetRepertorios, serviceDeletarRepertorio } from "@/lib/firebase-functions";
-import { salvarOrdemRepertoriosAction } from "./actions";
+import { auth, db } from "@/lib/firebase";
+import { getUserRole, getPermissions, UserPermissions, isAdmin } from "@/lib/auth";
+import { serviceGetMusicas, serviceDeletarMusica } from "@/lib/firebase-functions";
+import { doc, updateDoc, arrayUnion } from "firebase/firestore";
+import { salvarOrdemMusicasAction } from "./actions";
 
-interface Repertorio {
+interface Musica {
   id: string;
   titulo: string;
-  descricao: string;
-  totalMusicas: number;
+  artista: string;
+  tomOriginal: string;
   ordem?: number;
   userId: string;
+  criadoPor?: string;
+  compartilhadoCom?: string[];
 }
 
-export default function RepertoriosPage() {
+export default function MusicasPage() {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
-  const [repertorios, setRepertorios] = useState<Repertorio[]>([]);
+  const [musicas, setMusicas] = useState<Musica[]>([]);
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [termoBusca, setTermoBusca] = useState("");
   const [carregando, setCarregando] = useState(true);
   const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+
+  // Estados para o Modal de Partilha
+  const [musicaParaPartilhar, setMusicaParaPartilhar] = useState<Musica | null>(null);
+  const [emailDestinatario, setEmailDestinatario] = useState("");
+  const [aPartilhar, setAPartilhar] = useState(false);
+  const [mensagemSucesso, setMensagemSucesso] = useState("");
 
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
@@ -4235,34 +4226,474 @@ export default function RepertoriosPage() {
       } else {
         setUser(currentUser);
         
-        // 1. Obtém as permissões do utilizador
+        // 1. Descobre as permissões do utilizador logado
         const role = await getUserRole(currentUser);
         const userPerms = getPermissions(role);
         setPermissions(userPerms);
 
-        // 2. Carrega os repertórios através do serviço centralizado
-        await carregarRepertorios();
+        // 2. Carrega as músicas
+        await carregarMusicas(currentUser);
       }
     });
 
     return () => unsubscribe();
   }, [router]);
 
-  const carregarRepertorios = async () => {
+  const carregarMusicas = async (currentUser: User) => {
+    try {
+      setCarregando(true);
+      const lista = await serviceGetMusicas();
+      const emailUser = currentUser.email?.toLowerCase() || "";
+      const admin = isAdmin(currentUser);
+      
+      const musicasFormatadas: Musica[] = [];
+
+      lista.forEach((item: any) => {
+        const criadoPor = (item.criadoPor || item.email || "").toLowerCase();
+        const compartilhadoCom = (item.compartilhadoCom || []).map((e: string) => e.toLowerCase());
+
+        // Regra de visualização: Admin vê tudo, utilizador comum vê as suas ou as partilhadas com ele
+        const eDono = criadoPor === emailUser || item.userId === currentUser.uid;
+        const eCompartilhado = compartilhadoCom.includes(emailUser);
+
+        if (admin || eDono || eCompartilhado) {
+          musicasFormatadas.push({
+            id: item.id,
+            titulo: item.titulo || "Sem título",
+            artista: item.artista || "Artista desconhecido",
+            tomOriginal: item.tomOriginal || "C",
+            ordem: item.ordem ?? 0,
+            userId: item.userId,
+            criadoPor: item.criadoPor || item.email || "",
+            compartilhadoCom: item.compartilhadoCom || [],
+          });
+        }
+      });
+
+      musicasFormatadas.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+      setMusicas(musicasFormatadas);
+    } catch (erro) {
+      console.error("Erro ao carregar músicas:", erro);
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  // Lógica de Arrastar e Reordenar
+  const handleDragStart = (index: number) => {
+    dragItem.current = index;
+    setItemArrastado(index);
+  };
+
+  const handleDragEnter = (index: number) => {
+    dragOverItem.current = index;
+  };
+
+  const handleDragEnd = async () => {
+    if (
+      dragItem.current !== null &&
+      dragOverItem.current !== null &&
+      dragItem.current !== dragOverItem.current
+    ) {
+      const novaLista = [...musicas];
+      const itemMovido = novaLista.splice(dragItem.current, 1)[0];
+      novaLista.splice(dragOverItem.current, 0, itemMovido);
+
+      setMusicas(novaLista);
+
+      setSalvandoOrdem(true);
+      await salvarOrdemMusicasAction(novaLista);
+      setSalvandoOrdem(false);
+    }
+
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setItemArrastado(null);
+  };
+
+  const handleExcluir = async (id: string, titulo: string, donoId: string, criadoPor?: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    const éAdmin = isAdmin(user);
+    const éDono = user && (user.uid === donoId || user.email === criadoPor);
+
+    if (!éAdmin && !éDono) {
+      alert("Apenas o criador original pode eliminar esta música.");
+      return;
+    }
+
+    if (confirm(`Tem certeza de que deseja eliminar a música "${titulo}"?`)) {
+      try {
+        await serviceDeletarMusica(id, donoId);
+        setMusicas((prev) => prev.filter((m) => m.id !== id));
+      } catch (erro: any) {
+        alert(erro.message || "Erro ao eliminar música.");
+      }
+    }
+  };
+
+  const handlePartilhar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!musicaParaPartilhar || !emailDestinatario.trim()) return;
+
+    try {
+      setAPartilhar(true);
+      const musicaRef = doc(db, "musicas", musicaParaPartilhar.id);
+      
+      await updateDoc(musicaRef, {
+        compartilhadoCom: arrayUnion(emailDestinatario.trim().toLowerCase()),
+      });
+
+      setMensagemSucesso("Música partilhada com sucesso!");
+      setEmailDestinatario("");
+      setTimeout(() => {
+        setMensagemSucesso("");
+        setMusicaParaPartilhar(null);
+        if (user) carregarMusicas(user);
+      }, 1500);
+    } catch (erro) {
+      console.error("Erro ao partilhar música:", erro);
+      alert("Erro ao partilhar música. Verifique o e-mail.");
+    } finally {
+      setAPartilhar(false);
+    }
+  };
+
+  const musicasFiltradas = musicas.filter(
+    (m) =>
+      m.titulo.toLowerCase().includes(termoBusca.toLowerCase()) ||
+      m.artista.toLowerCase().includes(termoBusca.toLowerCase())
+  );
+
+  if (carregando) {
+    return (
+      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 w-full flex items-center justify-center">
+        <div className="flex items-center gap-2 text-amber-400">
+          <Loader2 size={24} className="animate-spin" />
+          <p className="text-sm">A carregar músicas...</p>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
+      <div className="w-full max-w-4xl mx-auto flex-1">
+        {/* Cabeçalho */}
+        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
+          <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+            >
+              <ArrowLeft size={20} />
+            </Link>
+            <h1 className="text-xl font-bold text-amber-400">Músicas</h1>
+          </div>
+
+          {permissions?.canModifyContent && (
+            <Link
+              href="/musicas/nova"
+              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
+              title="Nova Música"
+            >
+              <Plus size={20} />
+            </Link>
+          )}
+        </header>
+
+        {/* Campo de Pesquisa */}
+        <div className="relative mb-4">
+          <Search size={18} className="absolute left-3 top-3 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Pesquisar por título ou artista..."
+            value={termoBusca}
+            onChange={(e) => setTermoBusca(e.target.value)}
+            className="w-full bg-slate-800 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+          />
+        </div>
+
+        {/* Lista de Músicas com Arraste */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+              Catálogo de Músicas ({musicasFiltradas.length})
+            </p>
+            {salvandoOrdem && (
+              <span className="text-[10px] text-amber-400 animate-pulse font-mono">
+                A guardar ordem...
+              </span>
+            )}
+          </div>
+
+          {musicasFiltradas.length === 0 ? (
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl space-y-3">
+              <Music size={36} className="mx-auto opacity-40" />
+              <p className="text-sm">Ainda não tens nenhuma música guardada.</p>
+              {permissions?.canModifyContent && (
+                <Link 
+                  href="/musicas/nova"
+                  className="inline-block text-xs text-amber-400 font-semibold hover:underline"
+                >
+                  Criar a primeira música
+                </Link>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {musicasFiltradas.map((m, index) => {
+                const modoBuscaAtivo = termoBusca.trim().length > 0;
+                const ePartilhado = !isAdmin(user) && m.criadoPor && user?.email && m.criadoPor.toLowerCase() !== user.email.toLowerCase();
+
+                return (
+                  <div
+                    key={m.id}
+                    draggable={!modoBuscaAtivo}
+                    onDragStart={() => !modoBuscaAtivo && handleDragStart(index)}
+                    onDragEnter={() => !modoBuscaAtivo && handleDragEnter(index)}
+                    onDragEnd={handleDragEnd}
+                    onDragOver={(e) => e.preventDefault()}
+                    className={`bg-slate-800 p-3.5 rounded-xl border flex items-center justify-between gap-2 transition ${
+                      !modoBuscaAtivo ? "cursor-grab active:cursor-grabbing" : ""
+                    } ${
+                      itemArrastado === index
+                        ? "border-amber-400 opacity-40 bg-slate-700/50"
+                        : "border-slate-700/60 hover:border-slate-600"
+                    }`}
+                  >
+                    {/* Ícone Indicador de Arraste */}
+                    <div
+                      className={`p-1 shrink-0 ${
+                        modoBuscaAtivo
+                          ? "text-slate-700 cursor-not-allowed"
+                          : "text-slate-500 hover:text-amber-400"
+                      }`}
+                    >
+                      <GripVertical size={18} />
+                    </div>
+
+                    {/* Informações da Música */}
+                    <div className="flex-1 overflow-hidden pr-2">
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/musicas/${m.id}`}
+                          className="font-semibold text-slate-100 hover:text-amber-400 transition truncate block"
+                        >
+                          {m.titulo}
+                        </Link>
+                        {ePartilhado && (
+                          <span className="px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full font-medium shrink-0">
+                            Partilhado
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 truncate">{m.artista}</p>
+                    </div>
+
+                    {/* Tom e Botões de Ação */}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-bold px-2 py-0.5 rounded text-xs">
+                        {m.tomOriginal}
+                      </span>
+
+                      {/* Botão de Partilha */}
+                      <button
+                        onClick={() => setMusicaParaPartilhar(m)}
+                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition"
+                        title="Partilhar Música"
+                      >
+                        <Share2 size={16} />
+                      </button>
+
+                      {permissions?.canModifyContent && (
+                        <>
+                          <Link
+                            href={`/musicas/${m.id}/editar`}
+                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition"
+                            title="Editar"
+                          >
+                            <Edit size={16} />
+                          </Link>
+                          <button
+                            onClick={(e) => handleExcluir(m.id, m.titulo, m.userId, m.criadoPor, e)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
+                            title="Eliminar"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Modal de Partilha */}
+      {musicaParaPartilhar && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl animate-fade-in">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base text-amber-400 flex items-center gap-2">
+                <Share2 size={18} /> Partilhar Música
+              </h3>
+              <button
+                onClick={() => setMusicaParaPartilhar(null)}
+                className="text-slate-400 hover:text-slate-100 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Partilhar <strong className="text-slate-100">{musicaParaPartilhar.titulo}</strong> com outro utilizador:
+            </p>
+
+            {mensagemSucesso ? (
+              <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs flex items-center gap-2">
+                <Check size={16} /> <span>{mensagemSucesso}</span>
+              </div>
+            ) : (
+              <form onSubmit={handlePartilhar} className="space-y-3">
+                <input
+                  type="email"
+                  placeholder="E-mail do destinatário"
+                  value={emailDestinatario}
+                  onChange={(e) => setEmailDestinatario(e.target.value)}
+                  required
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                />
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setMusicaParaPartilhar(null)}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={aPartilhar}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {aPartilhar ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+                    <span>Partilhar</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
+</file>
+
+<file path="app/repertorios/page.tsx">
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, FolderKanban, Search, Loader2, Share2, FileText, X, Check } from "lucide-react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { getUserRole, getPermissions, UserPermissions, isAdmin } from "@/lib/auth";
+import { serviceGetRepertorios, serviceDeletarRepertorio } from "@/lib/firebase-functions";
+import { doc, updateDoc, arrayUnion } from "firebase/firestore";
+import { salvarOrdemRepertoriosAction } from "./actions";
+import jsPDF from "jspdf";
+
+interface Repertorio {
+  id: string;
+  titulo: string;
+  descricao: string;
+  totalMusicas: number;
+  ordem?: number;
+  userId: string;
+  criadoPor?: string;
+  compartilhadoCom?: string[];
+  musicasIds?: string[];
+}
+
+export default function RepertoriosPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<User | null>(null);
+  const [repertorios, setRepertorios] = useState<Repertorio[]>([]);
+  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
+  const [termoBusca, setTermoBusca] = useState("");
+  const [carregando, setCarregando] = useState(true);
+  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+
+  // Estados para o Modal de Partilha
+  const [repertorioParaPartilhar, setRepertorioParaPartilhar] = useState<Repertorio | null>(null);
+  const [emailDestinatario, setEmailDestinatario] = useState("");
+  const [aPartilhar, setAPartilhar] = useState(false);
+  const [mensagemSucesso, setMensagemSucesso] = useState("");
+  const [aGerarPdf, setAGerarPdf] = useState(false);
+
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [itemArrastado, setItemArrastado] = useState<number | null>(null);
+
+  const projectId = "app-cifras-bcdce";
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        router.push("/login");
+      } else {
+        setUser(currentUser);
+        
+        const role = await getUserRole(currentUser);
+        const userPerms = getPermissions(role);
+        setPermissions(userPerms);
+
+        await carregarRepertorios(currentUser);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  const carregarRepertorios = async (currentUser: User) => {
     try {
       setCarregando(true);
       const lista = await serviceGetRepertorios();
+      const emailUser = currentUser.email?.toLowerCase() || "";
+      const admin = isAdmin(currentUser);
       
-      const repertoriosFormatados: Repertorio[] = lista.map((data: any) => {
+      const repertoriosFormatados: Repertorio[] = [];
+
+      lista.forEach((data: any) => {
         const musicasIds = data.musicasIds || [];
-        return {
-          id: data.id,
-          titulo: data.titulo || "Sem título",
-          descricao: data.descricao || "",
-          totalMusicas: musicasIds.length,
-          ordem: data.ordem ?? 0,
-          userId: data.userId,
-        };
+        const criadoPor = (data.criadoPor || data.email || "").toLowerCase();
+        const compartilhadoCom = (data.compartilhadoCom || []).map((e: string) => e.toLowerCase());
+
+        const eDono = criadoPor === emailUser || data.userId === currentUser.uid;
+        const eCompartilhado = compartilhadoCom.includes(emailUser);
+
+        if (admin || eDono || eCompartilhado) {
+          repertoriosFormatados.push({
+            id: data.id,
+            titulo: data.titulo || "Sem título",
+            descricao: data.descricao || "",
+            totalMusicas: musicasIds.length,
+            ordem: data.ordem ?? 0,
+            userId: data.userId,
+            criadoPor: data.criadoPor || "",
+            compartilhadoCom: data.compartilhadoCom || [],
+            musicasIds,
+          });
+        }
       });
 
       repertoriosFormatados.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
@@ -4273,7 +4704,7 @@ export default function RepertoriosPage() {
       setCarregando(false);
     }
   };
-  
+
   const handleDragStart = (index: number) => {
     dragItem.current = index;
     setItemArrastado(index);
@@ -4305,9 +4736,19 @@ export default function RepertoriosPage() {
     setItemArrastado(null);
   };
 
-  const handleExcluir = async (id: string, titulo: string, donoId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const handleExcluir = async (id: string, titulo: string, donoId: string, criadoPor?: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    const éAdmin = isAdmin(user);
+    const éDono = user && (user.uid === donoId || user.email === criadoPor);
+
+    if (!éAdmin && !éDono) {
+      alert("Apenas o criador original pode eliminar este repertório.");
+      return;
+    }
 
     if (confirm(`Tem certeza de que deseja eliminar o repertório "${titulo}"?`)) {
       try {
@@ -4316,6 +4757,160 @@ export default function RepertoriosPage() {
       } catch (erro: any) {
         alert(erro.message || "Erro ao eliminar repertório.");
       }
+    }
+  };
+
+  const handlePartilhar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!repertorioParaPartilhar || !emailDestinatario.trim()) return;
+
+    try {
+      setAPartilhar(true);
+      const repRef = doc(db, "repertorios", repertorioParaPartilhar.id);
+      
+      await updateDoc(repRef, {
+        compartilhadoCom: arrayUnion(emailDestinatario.trim().toLowerCase()),
+      });
+
+      setMensagemSucesso("Repertório partilhado com sucesso!");
+      setEmailDestinatario("");
+      setTimeout(() => {
+        setMensagemSucesso("");
+        setRepertorioParaPartilhar(null);
+        if (user) carregarRepertorios(user);
+      }, 1500);
+    } catch (erro) {
+      console.error("Erro ao partilhar repertório:", erro);
+      alert("Erro ao partilhar repertório. Verifique o e-mail.");
+    } finally {
+      setAPartilhar(false);
+    }
+  };
+
+  // Função para exportar e partilhar o PDF incluindo as letras
+  const handlePartilharPDF = async () => {
+    if (!repertorioParaPartilhar) return;
+
+    try {
+      setAGerarPdf(true);
+
+      const resMusicas = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
+        { cache: "no-store" }
+      );
+
+      const musicasDetalhes: any[] = [];
+      if (resMusicas.ok) {
+        const dadosMusicas = await resMusicas.json();
+        if (dadosMusicas.documents) {
+          const mapaMusicas = new Map<string, any>();
+          dadosMusicas.documents.forEach((doc: any) => {
+            const id = doc.name.split("/").pop();
+            const f = doc.fields || {};
+            mapaMusicas.set(id, {
+              id,
+              titulo: f.titulo?.stringValue || "Sem título",
+              artista: f.artista?.stringValue || "Artista desconhecido",
+              tomOriginal: f.tomOriginal?.stringValue || "C",
+              letra: f.letra?.stringValue || f.cifra?.stringValue || "",
+            });
+          });
+
+          const ids = repertorioParaPartilhar.musicasIds || [];
+          ids.forEach((id) => {
+            const m = mapaMusicas.get(id);
+            if (m) musicasDetalhes.push(m);
+          });
+        }
+      }
+
+      const docPdf = new jsPDF();
+      
+      docPdf.setFont("helvetica", "bold");
+      docPdf.setFontSize(18);
+      docPdf.text(repertorioParaPartilhar.titulo, 14, 20);
+
+      if (repertorioParaPartilhar.descricao) {
+        docPdf.setFont("helvetica", "normal");
+        docPdf.setFontSize(11);
+        docPdf.setTextColor(100);
+        docPdf.text(repertorioParaPartilhar.descricao, 14, 28);
+      }
+
+      docPdf.setLineWidth(0.5);
+      docPdf.setDrawColor(200, 200, 200);
+      docPdf.line(14, 34, 196, 34);
+
+      docPdf.setFont("helvetica", "bold");
+      docPdf.setFontSize(12);
+      docPdf.setTextColor(0, 0, 0);
+      docPdf.text("Músicas:", 14, 44);
+
+      let y = 52;
+      musicasDetalhes.forEach((m, index) => {
+        // Estima o tamanho necessário para esta música (título + metadados + linhas da letra)
+        const linhasLetra = m.letra ? docPdf.splitTextToSize(m.letra, 180) : [];
+        const alturaEstimada = 15 + (linhasLetra.length * 4) + 10;
+
+        // Se o conteúdo ultrapassar o limite da página atual, cria uma nova página antes de desenhar
+        if (y + alturaEstimada > 280) {
+          docPdf.addPage();
+          y = 20;
+        }
+
+        // Título da música
+        docPdf.setFont("helvetica", "bold");
+        docPdf.setFontSize(11);
+        docPdf.setTextColor(0, 0, 0);
+        docPdf.text(`${index + 1}. ${m.titulo}`, 14, y);
+
+        // Artista e Tom
+        docPdf.setFont("helvetica", "normal");
+        docPdf.setFontSize(9);
+        docPdf.setTextColor(100);
+        docPdf.text(`Artista: ${m.artista} | Tom: ${m.tomOriginal}`, 14, y + 5);
+
+        y += 12;
+
+        // Letra / Cifra da música
+        if (m.letra) {
+          docPdf.setFont("courier", "normal");
+          docPdf.setFontSize(8);
+          docPdf.setTextColor(40, 40, 40);
+
+          docPdf.text(linhasLetra, 14, y);
+          y += (linhasLetra.length * 4) + 8;
+        } else {
+          y += 6;
+        }
+      });
+
+      const pdfBlob = docPdf.output("blob");
+      const pdfFile = new File([pdfBlob], `${repertorioParaPartilhar.titulo}.pdf`, { type: "application/pdf" });
+
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+          title: repertorioParaPartilhar.titulo,
+          text: `Segue o repertório: ${repertorioParaPartilhar.titulo}`,
+          files: [pdfFile],
+        });
+      } else {
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        const link = document.createElement("a");
+        link.href = pdfUrl;
+        link.download = `${repertorioParaPartilhar.titulo}.pdf`;
+        link.click();
+
+        const mensagem = encodeURIComponent(`Olá! Segue em anexo o repertório "${repertorioParaPartilhar.titulo}".`);
+        window.open(`https://api.whatsapp.com/send?text=${mensagem}`, "_blank");
+      }
+
+      setRepertorioParaPartilhar(null);
+    } catch (erro) {
+      console.error("Erro ao gerar PDF:", erro);
+      alert("Não foi possível gerar o PDF.");
+    } finally {
+      setAGerarPdf(false);
     }
   };
 
@@ -4339,7 +4934,7 @@ export default function RepertoriosPage() {
   return (
     <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
       <div className="w-full max-w-4xl mx-auto flex-1">
-        {/* Cabeçalho corrigido para Repertórios */}
+        {/* Cabeçalho */}
         <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
           <div className="flex items-center gap-3">
             <Link
@@ -4351,7 +4946,6 @@ export default function RepertoriosPage() {
             <h1 className="text-xl font-bold text-amber-400">Repertórios</h1>
           </div>
 
-          {/* Botão para criar novo repertório apontando para /repertorios/novo */}
           {permissions?.canModifyContent && (
             <Link
               href="/repertorios/novo"
@@ -4405,6 +4999,10 @@ export default function RepertoriosPage() {
             <div className="space-y-3">
               {repertoriosFiltrados.map((r, index) => {
                 const modoBuscaAtivo = termoBusca.trim().length > 0;
+                const emailUser = user?.email?.toLowerCase().trim() || "";
+                const criadoPorItem = (r.criadoPor || "").toLowerCase().trim();
+                const eDono = (criadoPorItem && criadoPorItem === emailUser) || (r.userId && r.userId === user?.uid);
+                const ePartilhado = !isAdmin(user) && !eDono;
 
                 return (
                   <div
@@ -4436,9 +5034,16 @@ export default function RepertoriosPage() {
                       href={`/repertorios/${r.id}`}
                       className="flex-1 overflow-hidden"
                     >
-                      <h2 className="font-bold text-slate-100 truncate text-base hover:text-amber-400 transition mb-0.5">
-                        {r.titulo}
-                      </h2>
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <h2 className="font-bold text-slate-100 truncate text-base hover:text-amber-400 transition">
+                          {r.titulo}
+                        </h2>
+                        {ePartilhado && (
+                          <span className="px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full font-medium shrink-0">
+                            Partilhado
+                          </span>
+                        )}
+                      </div>
                       {r.descricao && (
                         <p className="text-xs text-slate-400 truncate mb-1">
                           {r.descricao}
@@ -4453,7 +5058,16 @@ export default function RepertoriosPage() {
                       </p>
                     </Link>
 
+                    {/* Botão de Partilha */}
                     <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => setRepertorioParaPartilhar(r)}
+                        className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded-lg transition"
+                        title="Partilhar Repertório"
+                      >
+                        <Share2 size={16} />
+                      </button>
+
                       {permissions?.canModifyContent && (
                         <>
                           <Link
@@ -4464,7 +5078,7 @@ export default function RepertoriosPage() {
                             <Edit size={16} />
                           </Link>
                           <button
-                            onClick={(e) => handleExcluir(r.id, r.titulo, r.userId, e)}
+                            onClick={(e) => handleExcluir(r.id, r.titulo, r.userId, r.criadoPor, e)}
                             className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded-lg transition"
                             title="Eliminar"
                           >
@@ -4486,6 +5100,87 @@ export default function RepertoriosPage() {
           )}
         </section>
       </div>
+
+      {/* Modal de Partilha */}
+      {repertorioParaPartilhar && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl animate-fade-in">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base text-amber-400 flex items-center gap-2">
+                <Share2 size={18} /> Partilhar Repertório
+              </h3>
+              <button
+                onClick={() => setRepertorioParaPartilhar(null)}
+                className="text-slate-400 hover:text-slate-100 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Partilhar <strong className="text-slate-100">{repertorioParaPartilhar.titulo}</strong>:
+            </p>
+
+            <div className="space-y-3 pt-1">
+              {/* Botão de PDF / WhatsApp */}
+              <button
+                onClick={handlePartilharPDF}
+                disabled={aGerarPdf || (repertorioParaPartilhar.totalMusicas === 0)}
+                className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 shadow"
+              >
+                <FileText size={16} />
+                <span>{aGerarPdf ? "A gerar PDF..." : "Partilhar PDF / WhatsApp"}</span>
+              </button>
+              {repertorioParaPartilhar.totalMusicas === 0 && (
+                <p className="text-[10px] text-amber-400/80 italic text-center">
+                  Adicione músicas para poder exportar o PDF.
+                </p>
+              )}
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-800"></div>
+                <span className="flex-shrink mx-4 text-[10px] text-slate-500 uppercase tracking-wider">ou</span>
+                <div className="flex-grow border-t border-slate-800"></div>
+              </div>
+
+              {/* Partilha por E-mail */}
+              {mensagemSucesso ? (
+                <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs flex items-center gap-2">
+                  <Check size={16} /> <span>{mensagemSucesso}</span>
+                </div>
+              ) : (
+                <form onSubmit={handlePartilhar} className="space-y-3">
+                  <input
+                    type="email"
+                    placeholder="E-mail do destinatário"
+                    value={emailDestinatario}
+                    onChange={(e) => setEmailDestinatario(e.target.value)}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setRepertorioParaPartilhar(null)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={aPartilhar}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {aPartilhar ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+                      <span>Partilhar Acesso</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

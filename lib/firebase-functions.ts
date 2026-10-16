@@ -137,13 +137,12 @@ export async function serviceDeletarRepertorio(idRepertorio: string, donoIdReper
 }
 
 /**
- * Retorna os dados de um repertório específico pelo ID.
+ * Retorna os dados de um repertório específico pelo ID (com suporte a partilhados).
  */
 export async function serviceGetRepertorioPorId(idRepertorio: string) {
-  const docRef = doc(db, "repertorios", idRepertorio);
-  const docSnap = await getDoc(docRef);
-  if (!docSnap.exists()) return null;
-  return { id: docSnap.id, ...docSnap.data() };
+  const repertorios = await serviceGetRepertorios();
+  const repertorioEncontrado = repertorios.find((r: any) => r.id === idRepertorio);
+  return repertorioEncontrado || null;
 }
 
 /**

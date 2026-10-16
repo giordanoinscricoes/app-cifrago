@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, FolderKanban, Search, Loader2, Share2, X, Check } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, ChevronRight, FolderKanban, Search, Loader2, Share2, FileText, X, Check } from "lucide-react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { getUserRole, getPermissions, UserPermissions, isAdmin } from "@/lib/auth";
 import { serviceGetRepertorios, serviceDeletarRepertorio } from "@/lib/firebase-functions";
 import { doc, updateDoc, arrayUnion } from "firebase/firestore";
 import { salvarOrdemRepertoriosAction } from "./actions";
+import jsPDF from "jspdf";
 
 interface Repertorio {
   id: string;
@@ -20,6 +21,7 @@ interface Repertorio {
   userId: string;
   criadoPor?: string;
   compartilhadoCom?: string[];
+  musicasIds?: string[];
 }
 
 export default function RepertoriosPage() {
@@ -36,10 +38,13 @@ export default function RepertoriosPage() {
   const [emailDestinatario, setEmailDestinatario] = useState("");
   const [aPartilhar, setAPartilhar] = useState(false);
   const [mensagemSucesso, setMensagemSucesso] = useState("");
+  const [aGerarPdf, setAGerarPdf] = useState(false);
 
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const [itemArrastado, setItemArrastado] = useState<number | null>(null);
+
+  const projectId = "app-cifras-bcdce";
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -48,12 +53,10 @@ export default function RepertoriosPage() {
       } else {
         setUser(currentUser);
         
-        // 1. Obtém as permissões do utilizador
         const role = await getUserRole(currentUser);
         const userPerms = getPermissions(role);
         setPermissions(userPerms);
 
-        // 2. Carrega os repertórios
         await carregarRepertorios(currentUser);
       }
     });
@@ -75,7 +78,6 @@ export default function RepertoriosPage() {
         const criadoPor = (data.criadoPor || data.email || "").toLowerCase();
         const compartilhadoCom = (data.compartilhadoCom || []).map((e: string) => e.toLowerCase());
 
-        // Regra de visualização: Admin vê tudo, utilizador comum vê os seus ou os partilhados com ele
         const eDono = criadoPor === emailUser || data.userId === currentUser.uid;
         const eCompartilhado = compartilhadoCom.includes(emailUser);
 
@@ -87,8 +89,9 @@ export default function RepertoriosPage() {
             totalMusicas: musicasIds.length,
             ordem: data.ordem ?? 0,
             userId: data.userId,
-            criadoPor: data.criadoPor || "", // <--- Assegurar que traz o criadoPor do Firestore
+            criadoPor: data.criadoPor || "",
             compartilhadoCom: data.compartilhadoCom || [],
+            musicasIds,
           });
         }
       });
@@ -181,6 +184,133 @@ export default function RepertoriosPage() {
       alert("Erro ao partilhar repertório. Verifique o e-mail.");
     } finally {
       setAPartilhar(false);
+    }
+  };
+
+  // Função para exportar e partilhar o PDF incluindo as letras
+  const handlePartilharPDF = async () => {
+    if (!repertorioParaPartilhar) return;
+
+    try {
+      setAGerarPdf(true);
+
+      const resMusicas = await fetch(
+        `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
+        { cache: "no-store" }
+      );
+
+      const musicasDetalhes: any[] = [];
+      if (resMusicas.ok) {
+        const dadosMusicas = await resMusicas.json();
+        if (dadosMusicas.documents) {
+          const mapaMusicas = new Map<string, any>();
+          dadosMusicas.documents.forEach((doc: any) => {
+            const id = doc.name.split("/").pop();
+            const f = doc.fields || {};
+            mapaMusicas.set(id, {
+              id,
+              titulo: f.titulo?.stringValue || "Sem título",
+              artista: f.artista?.stringValue || "Artista desconhecido",
+              tomOriginal: f.tomOriginal?.stringValue || "C",
+              letra: f.letra?.stringValue || f.cifra?.stringValue || "",
+            });
+          });
+
+          const ids = repertorioParaPartilhar.musicasIds || [];
+          ids.forEach((id) => {
+            const m = mapaMusicas.get(id);
+            if (m) musicasDetalhes.push(m);
+          });
+        }
+      }
+
+      const docPdf = new jsPDF();
+      
+      docPdf.setFont("helvetica", "bold");
+      docPdf.setFontSize(18);
+      docPdf.text(repertorioParaPartilhar.titulo, 14, 20);
+
+      if (repertorioParaPartilhar.descricao) {
+        docPdf.setFont("helvetica", "normal");
+        docPdf.setFontSize(11);
+        docPdf.setTextColor(100);
+        docPdf.text(repertorioParaPartilhar.descricao, 14, 28);
+      }
+
+      docPdf.setLineWidth(0.5);
+      docPdf.setDrawColor(200, 200, 200);
+      docPdf.line(14, 34, 196, 34);
+
+      docPdf.setFont("helvetica", "bold");
+      docPdf.setFontSize(12);
+      docPdf.setTextColor(0, 0, 0);
+      docPdf.text("Músicas:", 14, 44);
+
+      let y = 52;
+      musicasDetalhes.forEach((m, index) => {
+        // Estima o tamanho necessário para esta música (título + metadados + linhas da letra)
+        const linhasLetra = m.letra ? docPdf.splitTextToSize(m.letra, 180) : [];
+        const alturaEstimada = 15 + (linhasLetra.length * 4) + 10;
+
+        // Se o conteúdo ultrapassar o limite da página atual, cria uma nova página antes de desenhar
+        if (y + alturaEstimada > 280) {
+          docPdf.addPage();
+          y = 20;
+        }
+
+        // Título da música
+        docPdf.setFont("helvetica", "bold");
+        docPdf.setFontSize(11);
+        docPdf.setTextColor(0, 0, 0);
+        docPdf.text(`${index + 1}. ${m.titulo}`, 14, y);
+
+        // Artista e Tom
+        docPdf.setFont("helvetica", "normal");
+        docPdf.setFontSize(9);
+        docPdf.setTextColor(100);
+        docPdf.text(`Artista: ${m.artista} | Tom: ${m.tomOriginal}`, 14, y + 5);
+
+        y += 12;
+
+        // Letra / Cifra da música
+        if (m.letra) {
+          docPdf.setFont("courier", "normal");
+          docPdf.setFontSize(8);
+          docPdf.setTextColor(40, 40, 40);
+
+          docPdf.text(linhasLetra, 14, y);
+          y += (linhasLetra.length * 4) + 8;
+        } else {
+          y += 6;
+        }
+      });
+
+      const pdfBlob = docPdf.output("blob");
+      const pdfFile = new File([pdfBlob], `${repertorioParaPartilhar.titulo}.pdf`, { type: "application/pdf" });
+
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+          title: repertorioParaPartilhar.titulo,
+          text: `Segue o repertório: ${repertorioParaPartilhar.titulo}`,
+          files: [pdfFile],
+        });
+      } else {
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        const link = document.createElement("a");
+        link.href = pdfUrl;
+        link.download = `${repertorioParaPartilhar.titulo}.pdf`;
+        link.click();
+
+        const mensagem = encodeURIComponent(`Olá! Segue em anexo o repertório "${repertorioParaPartilhar.titulo}".`);
+        window.open(`https://api.whatsapp.com/send?text=${mensagem}`, "_blank");
+      }
+
+      setRepertorioParaPartilhar(null);
+    } catch (erro) {
+      console.error("Erro ao gerar PDF:", erro);
+      alert("Não foi possível gerar o PDF.");
+    } finally {
+      setAGerarPdf(false);
     }
   };
 
@@ -328,6 +458,7 @@ export default function RepertoriosPage() {
                       </p>
                     </Link>
 
+                    {/* Botão de Partilha */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button
                         onClick={() => setRepertorioParaPartilhar(r)}
@@ -387,42 +518,66 @@ export default function RepertoriosPage() {
             </div>
 
             <p className="text-xs text-slate-300">
-              Partilhar <strong className="text-slate-100">{repertorioParaPartilhar.titulo}</strong> com outro utilizador:
+              Partilhar <strong className="text-slate-100">{repertorioParaPartilhar.titulo}</strong>:
             </p>
 
-            {mensagemSucesso ? (
-              <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs flex items-center gap-2">
-                <Check size={16} /> <span>{mensagemSucesso}</span>
+            <div className="space-y-3 pt-1">
+              {/* Botão de PDF / WhatsApp */}
+              <button
+                onClick={handlePartilharPDF}
+                disabled={aGerarPdf || (repertorioParaPartilhar.totalMusicas === 0)}
+                className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 shadow"
+              >
+                <FileText size={16} />
+                <span>{aGerarPdf ? "A gerar PDF..." : "Partilhar PDF / WhatsApp"}</span>
+              </button>
+              {repertorioParaPartilhar.totalMusicas === 0 && (
+                <p className="text-[10px] text-amber-400/80 italic text-center">
+                  Adicione músicas para poder exportar o PDF.
+                </p>
+              )}
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-800"></div>
+                <span className="flex-shrink mx-4 text-[10px] text-slate-500 uppercase tracking-wider">ou</span>
+                <div className="flex-grow border-t border-slate-800"></div>
               </div>
-            ) : (
-              <form onSubmit={handlePartilhar} className="space-y-3">
-                <input
-                  type="email"
-                  placeholder="E-mail do destinatário"
-                  value={emailDestinatario}
-                  onChange={(e) => setEmailDestinatario(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                />
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setRepertorioParaPartilhar(null)}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={aPartilhar}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {aPartilhar ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
-                    <span>Partilhar</span>
-                  </button>
+
+              {/* Partilha por E-mail */}
+              {mensagemSucesso ? (
+                <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs flex items-center gap-2">
+                  <Check size={16} /> <span>{mensagemSucesso}</span>
                 </div>
-              </form>
-            )}
+              ) : (
+                <form onSubmit={handlePartilhar} className="space-y-3">
+                  <input
+                    type="email"
+                    placeholder="E-mail do destinatário"
+                    value={emailDestinatario}
+                    onChange={(e) => setEmailDestinatario(e.target.value)}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setRepertorioParaPartilhar(null)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={aPartilhar}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {aPartilhar ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+                      <span>Partilhar Acesso</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}

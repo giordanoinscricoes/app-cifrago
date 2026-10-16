@@ -48,6 +48,8 @@ export default function ModoApresentacaoPage({
   const [scrollSpeed, setScrollSpeed] = useState(0.030); 
   const scrollRef = useRef<number | null>(null);
 
+  const projectId = "app-cifras-bcdce";
+
   useEffect(() => {
     let wakeLock: any = null;
     async function solicitarWakeLock() {
@@ -108,10 +110,13 @@ export default function ModoApresentacaoPage({
     async function carregarApresentacao() {
       try {
         setCarregando(true);
-        
-        // 1. Busca o repertório através do serviço centralizado
+
+        // 1. Busca o repertório pelo serviço centralizado seguro
         const docRep: any = await serviceGetRepertorioPorId(repertorioId);
-        if (!docRep) return;
+        if (!docRep) {
+          setCarregando(false);
+          return;
+        }
 
         const musicasIds: string[] = docRep.musicasIds || [];
         if (musicasIds.length === 0) {
@@ -119,19 +124,29 @@ export default function ModoApresentacaoPage({
           return;
         }
 
-        // 2. Busca todas as músicas através do serviço centralizado
-        const listaMusicasGeral = await serviceGetTodasMusicas();
-        const mapaMusicas = new Map<string, Musica>();
+        // 2. Busca todas as músicas via REST API (igual ao PDF) para garantir acesso às músicas do repertório partilhado
+        const resMusicas = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas`,
+          { cache: "no-store" }
+        );
 
-        listaMusicasGeral.forEach((m: any) => {
-          mapaMusicas.set(m.id, {
-            id: m.id,
-            titulo: m.titulo || "Sem título",
-            artista: m.artista || "Artista desconhecido",
-            tomOriginal: m.tomOriginal || "C",
-            cifra: m.cifra || "Cifra não cadastrada.",
-          });
-        });
+        const mapaMusicas = new Map<string, Musica>();
+        if (resMusicas.ok) {
+          const dadosMusicas = await resMusicas.json();
+          if (dadosMusicas.documents) {
+            dadosMusicas.documents.forEach((doc: any) => {
+              const id = doc.name.split("/").pop();
+              const f = doc.fields || {};
+              mapaMusicas.set(id, {
+                id,
+                titulo: f.titulo?.stringValue || "Sem título",
+                artista: f.artista?.stringValue || "Artista desconhecido",
+                tomOriginal: f.tomOriginal?.stringValue || "C",
+                cifra: f.cifra?.stringValue || f.letra?.stringValue || "Cifra não cadastrada.",
+              });
+            });
+          }
+        }
 
         const listaOrdenada = musicasIds
           .map((id) => mapaMusicas.get(id))
@@ -139,7 +154,7 @@ export default function ModoApresentacaoPage({
 
         setMusicas(listaOrdenada);
       } catch (erro) {
-        console.error("Erro:", erro);
+        console.error("Erro ao carregar apresentação:", erro);
       } finally {
         setCarregando(false);
       }

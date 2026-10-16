@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search, Loader2, Share2, X, Check } from "lucide-react";
+import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search, Loader2, Share2, X, Check, FileText } from "lucide-react";
 import { onAuthStateChanged, User } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import { getUserRole, getPermissions, UserPermissions, isAdmin } from "@/lib/auth";
 import { serviceGetMusicas, serviceDeletarMusica } from "@/lib/firebase-functions";
 import { doc, updateDoc, arrayUnion } from "firebase/firestore";
 import { salvarOrdemMusicasAction } from "./actions";
+import jsPDF from "jspdf";
 
 interface Musica {
   id: string;
@@ -20,6 +21,7 @@ interface Musica {
   userId: string;
   criadoPor?: string;
   compartilhadoCom?: string[];
+  cifra?: string;
 }
 
 export default function MusicasPage() {
@@ -40,6 +42,8 @@ export default function MusicasPage() {
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
   const [itemArrastado, setItemArrastado] = useState<number | null>(null);
+
+  const [aGerarPdf, setAGerarPdf] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -88,6 +92,7 @@ export default function MusicasPage() {
             userId: item.userId,
             criadoPor: item.criadoPor || item.email || "",
             compartilhadoCom: item.compartilhadoCom || [],
+            cifra: item.cifra || item.letra || "",
           });
         }
       });
@@ -181,6 +186,63 @@ export default function MusicasPage() {
       alert("Erro ao partilhar música. Verifique o e-mail.");
     } finally {
       setAPartilhar(false);
+    }
+  };
+
+  const handlePartilharPDF = async () => {
+    if (!musicaParaPartilhar) return;
+
+    try {
+      setAGerarPdf(true);
+
+      const docPdf = new jsPDF();
+      
+      docPdf.setFont("helvetica", "bold");
+      docPdf.setFontSize(18);
+      docPdf.text(musicaParaPartilhar.titulo, 14, 20);
+
+      docPdf.setFont("helvetica", "normal");
+      docPdf.setFontSize(11);
+      docPdf.setTextColor(100);
+      docPdf.text(`Artista: ${musicaParaPartilhar.artista} | Tom: ${musicaParaPartilhar.tomOriginal}`, 14, 28);
+
+      docPdf.setLineWidth(0.5);
+      docPdf.setDrawColor(200, 200, 200);
+      docPdf.line(14, 34, 196, 34);
+
+      docPdf.setFont("courier", "normal");
+      docPdf.setFontSize(9);
+      docPdf.setTextColor(40, 40, 40);
+
+      const linhasLetra = docPdf.splitTextToSize(musicaParaPartilhar.cifra || "", 180);
+      docPdf.text(linhasLetra, 14, 44);
+
+      const pdfBlob = docPdf.output("blob");
+      const pdfFile = new File([pdfBlob], `${musicaParaPartilhar.titulo} - ${musicaParaPartilhar.artista}.pdf`, { type: "application/pdf" });
+
+      if (navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        await navigator.share({
+          title: musicaParaPartilhar.titulo,
+          text: `Segue a cifra: ${musicaParaPartilhar.titulo} - ${musicaParaPartilhar.artista}`,
+          files: [pdfFile],
+        });
+      } else {
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        const link = document.createElement("a");
+        link.href = pdfUrl;
+        link.download = `${musicaParaPartilhar.titulo}.pdf`;
+        link.click();
+
+        const mensagem = encodeURIComponent(`Olá! Segue em anexo a cifra da música "${musicaParaPartilhar.titulo}" (${musicaParaPartilhar.artista}).`);
+        window.open(`https://api.whatsapp.com/send?text=${mensagem}`, "_blank");
+      }
+
+      setMusicaParaPartilhar(null);
+    } catch (erro) {
+      console.error("Erro ao gerar PDF da música:", erro);
+      alert("Não foi possível gerar o PDF da música.");
+    } finally {
+      setAGerarPdf(false);
     }
   };
 
@@ -375,42 +437,61 @@ export default function MusicasPage() {
             </div>
 
             <p className="text-xs text-slate-300">
-              Partilhar <strong className="text-slate-100">{musicaParaPartilhar.titulo}</strong> com outro utilizador:
+              Partilhar <strong className="text-slate-100">{musicaParaPartilhar.titulo}</strong>:
             </p>
 
-            {mensagemSucesso ? (
-              <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs flex items-center gap-2">
-                <Check size={16} /> <span>{mensagemSucesso}</span>
+            <div className="space-y-3 pt-1">
+              {/* Botão de PDF / WhatsApp */}
+              <button
+                onClick={handlePartilharPDF}
+                disabled={aGerarPdf}
+                className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 disabled:opacity-50 shadow"
+              >
+                <FileText size={16} />
+                <span>{aGerarPdf ? "A gerar PDF..." : "Partilhar PDF / WhatsApp"}</span>
+              </button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-slate-800"></div>
+                <span className="flex-shrink mx-4 text-[10px] text-slate-500 uppercase tracking-wider">ou</span>
+                <div className="flex-grow border-t border-slate-800"></div>
               </div>
-            ) : (
-              <form onSubmit={handlePartilhar} className="space-y-3">
-                <input
-                  type="email"
-                  placeholder="E-mail do destinatário"
-                  value={emailDestinatario}
-                  onChange={(e) => setEmailDestinatario(e.target.value)}
-                  required
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
-                />
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setMusicaParaPartilhar(null)}
-                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={aPartilhar}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
-                  >
-                    {aPartilhar ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
-                    <span>Partilhar</span>
-                  </button>
+
+              {/* Partilha por E-mail */}
+              {mensagemSucesso ? (
+                <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs flex items-center gap-2">
+                  <Check size={16} /> <span>{mensagemSucesso}</span>
                 </div>
-              </form>
-            )}
+              ) : (
+                <form onSubmit={handlePartilhar} className="space-y-3">
+                  <input
+                    type="email"
+                    placeholder="E-mail do destinatário"
+                    value={emailDestinatario}
+                    onChange={(e) => setEmailDestinatario(e.target.value)}
+                    required
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                  />
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setMusicaParaPartilhar(null)}
+                      className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={aPartilhar}
+                      className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      {aPartilhar ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+                      <span>Partilhar Acesso</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </div>
         </div>
       )}
