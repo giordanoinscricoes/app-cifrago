@@ -87,7 +87,7 @@ export default function RepertoriosPage() {
             totalMusicas: musicasIds.length,
             ordem: data.ordem ?? 0,
             userId: data.userId,
-            criadoPor: data.criadoPor || data.email || "",
+            criadoPor: data.criadoPor || "", // <--- Assegurar que traz o criadoPor do Firestore
             compartilhadoCom: data.compartilhadoCom || [],
           });
         }
@@ -269,7 +269,10 @@ export default function RepertoriosPage() {
             <div className="space-y-3">
               {repertoriosFiltrados.map((r, index) => {
                 const modoBuscaAtivo = termoBusca.trim().length > 0;
-                const ePartilhado = !isAdmin(user) && r.criadoPor && user?.email && r.criadoPor.toLowerCase() !== user.email.toLowerCase();
+                const emailUser = user?.email?.toLowerCase().trim() || "";
+                const criadoPorItem = (r.criadoPor || "").toLowerCase().trim();
+                const eDono = (criadoPorItem && criadoPorItem === emailUser) || (r.userId && r.userId === user?.uid);
+                const ePartilhado = !isAdmin(user) && !eDono;
 
                 return (
                   <div
