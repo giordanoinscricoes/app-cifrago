@@ -83,7 +83,7 @@ export default function EditarMusicaPage({
       artista,
       tomOriginal,
       cifra,
-      criadoPor: user ? user.email : "", // <--- 2. Enviar o email do criador/editor
+      criadoPor: user?.email ?? "", // <--- 2. Enviar o email do criador/editor
     });
 
     if (res.sucesso) {
