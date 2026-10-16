@@ -11,9 +11,11 @@ export async function editarMusicaAction(
     artista: string;
     tomOriginal: string;
     cifra: string;
+    criadoPor?: string; // <--- 1. Receber o criadoPor opcionalmente
   }
 ) {
-  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=artista&updateMask.fieldPaths=tomOriginal&updateMask.fieldPaths=cifra`;
+  // 2. Adicionar updateMask.fieldPaths=criadoPor para atualizar/inserir o campo no Firestore
+  const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/musicas/${musicaId}?updateMask.fieldPaths=titulo&updateMask.fieldPaths=artista&updateMask.fieldPaths=tomOriginal&updateMask.fieldPaths=cifra&updateMask.fieldPaths=criadoPor`;
 
   const bodyData = {
     fields: {
@@ -21,6 +23,7 @@ export async function editarMusicaAction(
       artista: { stringValue: dados.artista },
       tomOriginal: { stringValue: dados.tomOriginal },
       cifra: { stringValue: dados.cifra },
+      criadoPor: { stringValue: dados.criadoPor || "" }, // <--- 3. Gravar o criadoPor
     },
   };
 

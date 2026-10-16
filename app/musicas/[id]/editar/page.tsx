@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Save, Maximize2, Minimize2 } from "lucide-react";
 import { editarMusicaAction } from "../actions";
+import { auth } from "@/lib/firebase"; // <--- 1. Importar o auth
 
 export default function EditarMusicaPage({
   params,
@@ -73,11 +74,16 @@ export default function EditarMusicaPage({
     }
 
     setSalvando(true);
+    
+    // Obter o e-mail do utilizador atualmente logado
+    const user = auth.currentUser;
+
     const res = await editarMusicaAction(musicaId, {
       titulo,
       artista,
       tomOriginal,
       cifra,
+      criadoPor: user ? user.email : "", // <--- 2. Enviar o email do criador/editor
     });
 
     if (res.sucesso) {
