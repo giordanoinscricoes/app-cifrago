@@ -1,36 +1,36 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, GripVertical, Edit, Trash2, Music, Search, Loader2 } from "lucide-react";
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
-import { getUserRole, getPermissions, UserPermissions } from "@/lib/auth";
-import { serviceGetMusicas, serviceDeletarMusica } from "@/lib/firebase-functions";
-import { salvarOrdemMusicasAction } from "./actions";
+import Link from "next/link";
+import { ArrowLeft, Plus, Search, Music as MusicIcon, Edit, Trash2, Share2, Loader2, X, Check } from "lucide-react";
+import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth";
+import { collection, getDocs, doc, deleteDoc, updateDoc, arrayUnion, query, where, or } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { isAdmin } from "@/lib/auth";
 
 interface Musica {
   id: string;
   titulo: string;
   artista: string;
-  tomOriginal: string;
-  ordem?: number;
-  userId: string;
+  tom: string;
+  cifra: string;
+  criadoPor?: string;
+  compartilhadoCom?: string[];
 }
 
 export default function MusicasPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [musicas, setMusicas] = useState<Musica[]>([]);
-  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
-  const [termoBusca, setTermoBusca] = useState("");
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [carregando, setCarregando] = useState(true);
-  const [salvandoOrdem, setSalvandoOrdem] = useState(false);
+  const [musicas, setMusicas] = useState<Musica[]>([]);
+  const [termoPesquisa, setTermoPesquisa] = useState("");
 
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
-  const [itemArrastado, setItemArrastado] = useState<number | null>(null);
+  // Estado para o Modal de Partilha
+  const [musicaParaPartilhar, setMusicaParaPartilhar] = useState<Musica | null>(null);
+  const [emailDestinatario, setEmailDestinatario] = useState("");
+  const [aPartilhar, setAPartilhar] = useState(false);
+  const [mensagemSucesso, setMensagemSucesso] = useState("");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -38,36 +38,51 @@ export default function MusicasPage() {
         router.push("/login");
       } else {
         setUser(currentUser);
-        
-        // 1. Descobre as permissões do utilizador logado
-        const role = await getUserRole(currentUser);
-        const userPerms = getPermissions(role);
-        setPermissions(userPerms);
-
-        // 2. Carrega as músicas utilizando a função centralizada
-        await carregarMusicas();
+        await carregarMusicas(currentUser);
       }
+      setCarregando(false);
     });
 
     return () => unsubscribe();
   }, [router]);
 
-  const carregarMusicas = async () => {
+  const carregarMusicas = async (currentUser: FirebaseUser) => {
     try {
       setCarregando(true);
-      const lista = await serviceGetMusicas();
-      
-      const musicasFormatadas: Musica[] = lista.map((item: any) => ({
-        id: item.id,
-        titulo: item.titulo || "Sem título",
-        artista: item.artista || "Artista desconhecido",
-        tomOriginal: item.tomOriginal || "C",
-        ordem: item.ordem ?? 0,
-        userId: item.userId,
-      }));
+      let querySnapshot;
 
-      musicasFormatadas.sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
-      setMusicas(musicasFormatadas);
+      // Se for admin, busca todas as músicas da base de dados de forma global
+      if (isAdmin(currentUser)) {
+        querySnapshot = await getDocs(collection(db, "musicas"));
+      } else {
+        // Caso contrário, busca as criadas pelo próprio utilizador OU partilhadas com ele
+        const emailUser = currentUser.email || "";
+        const q = query(
+          collection(db, "musicas"),
+          or(
+            where("criadoPor", "==", emailUser),
+            where("compartilhadoCom", "array-contains", emailUser)
+          )
+        );
+        querySnapshot = await getDocs(q);
+      }
+
+      const lista: Musica[] = [];
+
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        lista.push({
+          id: docSnap.id,
+          titulo: data.titulo || "Sem título",
+          artista: data.artista || "Desconhecido",
+          tom: data.tom || "",
+          cifra: data.cifra || "",
+          criadoPor: data.criadoPor || "",
+          compartilhadoCom: data.compartilhadoCom || [],
+        });
+      });
+
+      setMusicas(lista);
     } catch (erro) {
       console.error("Erro ao carregar músicas:", erro);
     } finally {
@@ -75,210 +90,222 @@ export default function MusicasPage() {
     }
   };
 
-  // Lógica de Arrastar e Reordenar
-  const handleDragStart = (index: number) => {
-    dragItem.current = index;
-    setItemArrastado(index);
-  };
-
-  const handleDragEnter = (index: number) => {
-    dragOverItem.current = index;
-  };
-
-  const handleDragEnd = async () => {
-    if (
-      dragItem.current !== null &&
-      dragOverItem.current !== null &&
-      dragItem.current !== dragOverItem.current
-    ) {
-      const novaLista = [...musicas];
-      const itemMovido = novaLista.splice(dragItem.current, 1)[0];
-      novaLista.splice(dragOverItem.current, 0, itemMovido);
-
-      setMusicas(novaLista);
-
-      setSalvandoOrdem(true);
-      await salvarOrdemMusicasAction(novaLista);
-      setSalvandoOrdem(false);
+  const apagarMusica = async (id: string, criadoPor?: string) => {
+    // Admin pode apagar qualquer música, utilizador comum apenas as suas
+    if (!isAdmin(user) && criadoPor && user?.email && criadoPor !== user.email) {
+      alert("Apenas o criador original pode apagar esta música.");
+      return;
     }
 
-    dragItem.current = null;
-    dragOverItem.current = null;
-    setItemArrastado(null);
+    if (confirm("Tem certeza que deseja apagar esta música?")) {
+      try {
+        await deleteDoc(doc(db, "musicas", id));
+        setMusicas((prev) => prev.filter((m) => m.id !== id));
+      } catch (erro) {
+        console.error("Erro ao apagar música:", erro);
+        alert("Erro ao apagar a música.");
+      }
+    }
   };
 
-  const handleExcluir = async (id: string, titulo: string, donoId: string, e: React.MouseEvent) => {
+  const handlePartilhar = async (e: React.FormEvent) => {
     e.preventDefault();
-    e.stopPropagation();
+    if (!musicaParaPartilhar || !emailDestinatario.trim()) return;
 
-    if (confirm(`Tem certeza de que deseja eliminar a música "${titulo}"?`)) {
-      try {
-        await serviceDeletarMusica(id, donoId);
-        setMusicas((prev) => prev.filter((m) => m.id !== id));
-      } catch (erro: any) {
-        alert(erro.message || "Erro ao eliminar música.");
-      }
+    try {
+      setAPartilhar(true);
+      const musicaRef = doc(db, "musicas", musicaParaPartilhar.id);
+      
+      await updateDoc(musicaRef, {
+        compartilhadoCom: arrayUnion(emailDestinatario.trim().toLowerCase()),
+      });
+
+      setMensagemSucesso("Música partilhada com sucesso!");
+      setEmailDestinatario("");
+      setTimeout(() => {
+        setMensagemSucesso("");
+        setMusicaParaPartilhar(null);
+        if (user) carregarMusicas(user);
+      }, 1500);
+    } catch (erro) {
+      console.error("Erro ao partilhar música:", erro);
+      alert("Erro ao partilhar música. Verifique o e-mail.");
+    } finally {
+      setAPartilhar(false);
     }
   };
 
   const musicasFiltradas = musicas.filter(
     (m) =>
-      m.titulo.toLowerCase().includes(termoBusca.toLowerCase()) ||
-      m.artista.toLowerCase().includes(termoBusca.toLowerCase())
+      m.titulo.toLowerCase().includes(termoPesquisa.toLowerCase()) ||
+      m.artista.toLowerCase().includes(termoPesquisa.toLowerCase())
   );
 
-  if (carregando) {
+  if (carregando && musicas.length === 0) {
     return (
-      <main className="min-h-screen bg-slate-900 text-slate-100 p-4 w-full flex items-center justify-center">
-        <div className="flex items-center gap-2 text-amber-400">
-          <Loader2 size={24} className="animate-spin" />
-          <p className="text-sm">A carregar músicas...</p>
-        </div>
-      </main>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-amber-400">
+        <Loader2 size={32} className="animate-spin" />
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-900 text-slate-100 p-4 sm:p-6 w-full flex flex-col justify-between">
-      <div className="w-full max-w-4xl mx-auto flex-1">
+    <main className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 max-w-xl mx-auto flex flex-col justify-between">
+      <div>
         {/* Cabeçalho */}
-        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-4">
+        <header className="flex items-center justify-between py-4 border-b border-slate-800 mb-6">
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="p-2 bg-slate-800 rounded-full hover:bg-slate-700 text-slate-300 transition"
+              className="p-2 bg-slate-900 rounded-full hover:bg-slate-800 text-slate-300 transition border border-slate-800"
             >
               <ArrowLeft size={20} />
             </Link>
-            <h1 className="text-xl font-bold text-amber-400">Músicas</h1>
+            <div className="flex items-center gap-2">
+              <MusicIcon className="text-amber-400" size={24} />
+              <h1 className="text-xl font-bold text-amber-400">Catálogo de Músicas</h1>
+            </div>
           </div>
-
-          {/* Só mostra o botão de Nova Música se tiver permissão de modificação */}
-          {permissions?.canModifyContent && (
-            <Link
-              href="/musicas/nova"
-              className="p-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-full transition shadow-lg"
-              title="Nova Música"
-            >
-              <Plus size={20} />
-            </Link>
-          )}
+          <Link
+            href="/musicas/novo"
+            className="flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-lg"
+          >
+            <Plus size={16} />
+            <span>Nova Música</span>
+          </Link>
         </header>
 
-        {/* Campo de Pesquisa */}
-        <div className="relative mb-4">
-          <Search size={18} className="absolute left-3 top-3 text-slate-500" />
+        {/* Barra de Pesquisa */}
+        <div className="relative mb-6">
+          <Search className="absolute left-3.5 top-3 text-slate-500" size={18} />
           <input
             type="text"
             placeholder="Pesquisar por título ou artista..."
-            value={termoBusca}
-            onChange={(e) => setTermoBusca(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700/80 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-amber-400 placeholder:text-slate-500"
+            value={termoPesquisa}
+            onChange={(e) => setTermoPesquisa(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-10 pr-4 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 transition"
           />
         </div>
 
-        {/* Lista de Músicas com Arraste */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Catálogo de Músicas ({musicasFiltradas.length})
-            </p>
-            {salvandoOrdem && (
-              <span className="text-[10px] text-amber-400 animate-pulse font-mono">
-                A guardar ordem...
-              </span>
-            )}
-          </div>
-
+        {/* Lista de Músicas */}
+        <div className="space-y-3">
           {musicasFiltradas.length === 0 ? (
-            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-xl space-y-3">
-              <Music size={36} className="mx-auto opacity-40" />
-              <p className="text-sm">Ainda não tens nenhuma música guardada.</p>
-              {permissions?.canModifyContent && (
-                <Link 
-                  href="/musicas/nova"
-                  className="inline-block text-xs text-amber-400 font-semibold hover:underline"
-                >
-                  Criar a primeira música
-                </Link>
-              )}
+            <div className="text-center py-12 text-slate-500 border border-dashed border-slate-800 rounded-2xl">
+              <p className="text-sm">Nenhuma música encontrada.</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {musicasFiltradas.map((m, index) => {
-                const modoBuscaAtivo = termoBusca.trim().length > 0;
+            musicasFiltradas.map((m) => {
+              const ePartilhado = !isAdmin(user) && m.criadoPor && user?.email && m.criadoPor !== user.email;
 
-                return (
-                  <div
-                    key={m.id}
-                    draggable={!modoBuscaAtivo}
-                    onDragStart={() => !modoBuscaAtivo && handleDragStart(index)}
-                    onDragEnter={() => !modoBuscaAtivo && handleDragEnter(index)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                    className={`bg-slate-800 p-3.5 rounded-xl border flex items-center justify-between gap-2 transition ${
-                      !modoBuscaAtivo ? "cursor-grab active:cursor-grabbing" : ""
-                    } ${
-                      itemArrastado === index
-                        ? "border-amber-400 opacity-40 bg-slate-700/50"
-                        : "border-slate-700/60 hover:border-slate-600"
-                    }`}
-                  >
-                    {/* Ícone Indicador de Arraste */}
-                    <div
-                      className={`p-1 shrink-0 ${
-                        modoBuscaAtivo
-                          ? "text-slate-700 cursor-not-allowed"
-                          : "text-slate-500 hover:text-amber-400"
-                      }`}
-                    >
-                      <GripVertical size={18} />
-                    </div>
-
-                    {/* Informações da Música */}
-                    <div className="flex-1 overflow-hidden pr-2">
-                      <Link
-                        href={`/musicas/${m.id}`}
-                        className="font-semibold text-slate-100 hover:text-amber-400 transition truncate block"
-                      >
-                        {m.titulo}
-                      </Link>
-                      <p className="text-xs text-slate-400 truncate">{m.artista}</p>
-                    </div>
-
-                    {/* Tom e Botões de Ação */}
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="bg-amber-400/10 text-amber-400 border border-amber-400/20 font-bold px-2 py-0.5 rounded text-xs">
-                        {m.tomOriginal}
-                      </span>
-
-                      {/* Botões de Edição e Exclusão restritos a quem pode modificar */}
-                      {permissions?.canModifyContent && (
-                        <>
-                          <Link
-                            href={`/musicas/${m.id}/editar`}
-                            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-700 rounded transition"
-                            title="Editar"
-                          >
-                            <Edit size={16} />
-                          </Link>
-                          <button
-                            onClick={(e) => handleExcluir(m.id, m.titulo, m.userId, e)}
-                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-slate-700 rounded transition"
-                            title="Eliminar"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </>
+              return (
+                <div
+                  key={m.id}
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-md hover:border-slate-700 transition"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-bold text-slate-100 truncate">{m.titulo}</h2>
+                      {ePartilhado && (
+                        <span className="px-2 py-0.5 text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-full font-medium shrink-0">
+                          Partilhado
+                        </span>
                       )}
                     </div>
+                    <p className="text-xs text-slate-400 truncate">{m.artista}</p>
+                    {m.tom && (
+                      <span className="inline-block mt-1.5 px-2 py-0.5 bg-slate-950 border border-slate-800 rounded-md text-[11px] font-mono text-amber-400">
+                        Tom: {m.tom}
+                      </span>
+                    )}
                   </div>
-                );
-              })}
-            </div>
+
+                  {/* Botões de Ação */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => setMusicaParaPartilhar(m)}
+                      className="p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-amber-400 rounded-xl transition border border-slate-800"
+                      title="Partilhar Música"
+                    >
+                      <Share2 size={16} />
+                    </button>
+                    <Link
+                      href={`/musicas/${m.id}`}
+                      className="p-2 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-amber-400 rounded-xl transition border border-slate-800"
+                      title="Editar / Ver Cifra"
+                    >
+                      <Edit size={16} />
+                    </Link>
+                    <button
+                      onClick={() => apagarMusica(m.id, m.criadoPor)}
+                      className="p-2 bg-slate-950 hover:bg-red-500/20 text-slate-400 hover:text-red-400 rounded-xl transition border border-slate-800"
+                      title="Apagar Música"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
           )}
-        </section>
+        </div>
       </div>
+
+      {/* Modal de Partilha */}
+      {musicaParaPartilhar && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4 shadow-2xl animate-fade-in">
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-base text-amber-400 flex items-center gap-2">
+                <Share2 size={18} /> Partilhar Música
+              </h3>
+              <button
+                onClick={() => setMusicaParaPartilhar(null)}
+                className="text-slate-400 hover:text-slate-100 transition"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300">
+              Partilhar <strong className="text-slate-100">{musicaParaPartilhar.titulo}</strong> com outro utilizador:
+            </p>
+
+            {mensagemSucesso ? (
+              <div className="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 p-3 rounded-xl text-xs flex items-center gap-2">
+                <Check size={16} /> <span>{mensagemSucesso}</span>
+              </div>
+            ) : (
+              <form onSubmit={handlePartilhar} className="space-y-3">
+                <input
+                  type="email"
+                  placeholder="E-mail do destinatário"
+                  value={emailDestinatario}
+                  onChange={(e) => setEmailDestinatario(e.target.value)}
+                  required
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400"
+                />
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setMusicaParaPartilhar(null)}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-medium transition"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={aPartilhar}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {aPartilhar ? <Loader2 size={14} className="animate-spin" /> : <Share2 size={14} />}
+                    <span>Partilhar</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
